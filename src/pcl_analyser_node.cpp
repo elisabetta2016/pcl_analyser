@@ -101,6 +101,8 @@ double Cost_gain;
 double Speed_gain;
 double omega_x;
 
+
+
 class ObstacleDetectorClass
 {
 	public:
@@ -145,58 +147,7 @@ class ObstacleDetectorClass
 			
     			
 	}
-	/*
-	void fill_costmap_test()
-	{
-		
-		pcl::PointCloud<pcl::PointXYZ> fake_obs;
-		
-		
-		float X_obs = 1.2;
-		float Y_obs = -0.8;
-		
-		pcl::PointXYZ point;
-		point.x = X_obs;
-		point.y = Y_obs;
-		point.z = 0.0;
-		for(int i=0;i<3; i++)
-		{
-			point.x = point.x + costmap_res;
-			point.y = Y_obs;
-			for(int j=0;j < 3;j++)
-			{	
-				
-				point.y = point.y - costmap_res;
-				point.z = 0.0;
-				fake_obs.points.push_back(point);
-				
-			}
-		}
-		
-		X_obs = 1.8;
-		Y_obs = 1.8;
-		point.x = X_obs;
-		point.y = Y_obs;
-		point.z = 0.0;
-		for(int i=0;i<3; i++)
-		{
-			point.x = point.x + costmap_res;
-			point.y = Y_obs;
-			for(int j=0;j < 3;j++)
-			{	
-				
-				point.y = point.y - costmap_res;
-				point.z = 0.0;
-				fake_obs.points.push_back(point);
-				
-			}
-		}
-		
-		cloud_to_costmap(fake_obs);
-		cost_map_2_cloud();
 	
-	
-	}*/
 
 	void cloud_voxel_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,float cube_size)
 	{
@@ -334,8 +285,10 @@ class ObstacleDetectorClass
 	
 	//compute_repulsive_force(obs_projected);
 	
+	
 	cloud_to_costmap(obstacle_pcl);
-	cost_map_2_cloud();
+	costmap_to_cloud();
+	
 	
 	repuslive_force_pub_.publish(repulsive_force);
 	repulsive_force.x = 0.0;
@@ -532,7 +485,7 @@ class ObstacleDetectorClass
 	}	
 		
 	
-	void cost_map_2_cloud()
+	void costmap_to_cloud()
 	{
 	double temp_x;
 	double temp_y;
@@ -546,14 +499,18 @@ class ObstacleDetectorClass
 			{
 				master_grid_->mapToWorld(i,j,temp_x,temp_y);
 
-				
-				pcl::PointXYZI point;
-				point.z = 0.0;
-				point.x = temp_x;
-				point.y = temp_y;
-				point.intensity = (float) cost; 			
-				cost_map_cloud.points.push_back(point);
-				
+				for (int k = -1; k < 2; k++) // -1;2
+				{
+					for (int l = -1; l < 2; l++) // -1;2
+					{
+						pcl::PointXYZI point;
+						point.z = 0.0;
+						point.x = temp_x + (float) k*costmap_res/2*0.9;
+						point.y = temp_y + (float) l*costmap_res/2*0.9;	
+						point.intensity = (float) cost;		
+						cost_map_cloud.points.push_back(point);
+					}
+				}
 			}
 		
 		}
@@ -577,8 +534,8 @@ class ObstacleDetectorClass
 		float V_right = msg->Front_Right_Track_Speed;
 		float V_left = msg->Front_Left_Track_Speed;
 		
-		float V_in     = 1.0;//(V_right + V_left) / 2  ;
-		float Omega_in = 0.0;//(V_right - V_left) / 0.8; //to be checked
+		float V_in     = (V_right + V_left) / 2  ;
+		float Omega_in = (V_right - V_left) / 0.8; //to be checked
 		
 		
   		// inputs
@@ -1149,15 +1106,17 @@ class ObstacleDetectorClass
 			
 			tf::Matrix3x3 M(transform_odom_laser.getRotation());
 			M.getRPY(roll,pitch,yaw,(unsigned int) 1);
-			curr_yaw = (float) yaw;
+			curr_yaw = (float) yaw - M_PI/2;
 			
 			
 			if (!first_loop)
 			{	
 				
-				float delta_x   = (curr_x - last_x);
-				float delta_y   = (curr_y - last_y);
+				float delta_x   =  (curr_x - last_x) * cos(curr_yaw) + (curr_y - last_y)* sin(curr_yaw);
+				float delta_y   = -(curr_x - last_x) * sin(curr_yaw) + (curr_y - last_y)* cos(curr_yaw);;
 				float delta_yaw = (curr_yaw - last_yaw);
+				
+				
 				
 
 				/*
@@ -1167,10 +1126,10 @@ class ObstacleDetectorClass
 				|     0        0     0  1|
 				*/
 				
-				transform_1 (0,0) =  cos (delta_yaw);
-  				transform_1 (0,1) =  sin (delta_yaw);
-  				transform_1 (1,0) = -sin (delta_yaw);
-  				transform_1 (1,1) =  cos (delta_yaw);
+				transform_1 (0,0) =  cos (delta_yaw);  transform_1 (0,1) =  sin (delta_yaw);
+  				
+  				transform_1 (1,0) = -sin (delta_yaw);  transform_1 (1,1) =  cos (delta_yaw);
+  				
   				transform_1 (0,3) = -delta_y; //odom orientation is 90 degree rotated with respect to laser
   				transform_1 (1,3) = -delta_x;
   				transform_1 (2,3) = 0.0;

@@ -23,8 +23,8 @@ class PathfollowerClass
 	{
 		n_=node;
 		SubFromPath_		= n_.subscribe("/Path_pso", 1, &PathfollowerClass::pathCallback,this);
-		SubFromOdom_		= n_.subscribe("/odom",     1, &PathfollowerClass::OdomCallback,this);
-		SubFromControllerSpeed_ = n_.subscribe("/speedfollow",     1, &PathfollowerClass::speedcallback,this);
+		//SubFromOdom_		= n_.subscribe("/odom",     1, &PathfollowerClass::OdomCallback,this);
+		//SubFromControllerSpeed_ = n_.subscribe("/speedfollow",     1, &PathfollowerClass::speedcallback,this);
 		
 		speed_pub_	  	  = n_.advertise<geometry_msgs::Vector3> ("body_error", 1);
 		testodom_pub_		  = n_.advertise<nav_msgs::Odometry> ("test_odom", 1);
@@ -58,7 +58,7 @@ class PathfollowerClass
 
 		
 	}
-	
+	/*
 	void OdomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 	{
 		double Vx  = msg->twist.twist.linear.x;
@@ -68,10 +68,6 @@ class PathfollowerClass
 		//asynch
 		current_time = ros::Time::now();
 		double dt = (current_time - last_time).toSec();
-		
-		th_base_orig += Vth*dt;
-		x_base_orig += Vx*dt;
-		y_base_orig += Vy*dt;
 		
 		last_time = current_time;
 		
@@ -98,13 +94,13 @@ class PathfollowerClass
 		
 		
 	
-	}
-	
+	}*/
+	/*
 	void speedcallback(const geometry_msgs::Vector3::ConstPtr& msg)
 	{
 		//if(msg->z > 5.00) goal_achieved = true;
 		//else         goal_achieved = false;
-	}
+	}*/
 	
 	void run()
 	{
@@ -117,19 +113,72 @@ class PathfollowerClass
 		Matrix2f Rot;
 		Rot << 1,0,
 		       0,1;
+		       
+		bool first_loop = true;
+		bool  transform_present = false;      
+		double curr_x;
+		double curr_y;
+		double curr_yaw;
+		double last_x;
+		double last_y;
+		double last_yaw;	
+		double delta_x   = 0.0;
+		double delta_y   = 0.0;
+		double delta_yaw = 0.0;
+		tf::TransformListener listener;
+		
 		
 		while (ros::ok())
 		{
-			/*
-			current_time = ros::Time::now();
-			dt = (current_time - last_time).toSec();
+			tf::StampedTransform transform_odom_laser;
+    		    	try{
+      				listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform_odom_laser);
+      				transform_present = true;
+    		    	}
+    			catch (tf::TransformException ex)
+    			{
+      				ROS_WARN("%s",ex.what());
+      				ros::Duration(0.05).sleep();
+      				transform_present = false;
+    			}
+			//Reading x and y
+			curr_x =transform_odom_laser.getOrigin().x();
+			curr_y =transform_odom_laser.getOrigin().y();
 			
-			th_base_orig += Vth*dt;
-			x_base_orig += Vx*dt;
-			y_base_orig += Vy*dt;
-			*/
+			tfScalar roll,pitch,yaw;
+			
+			tf::Matrix3x3 M(transform_odom_laser.getRotation());
+			M.getRPY(roll,pitch,yaw,(unsigned int) 1);
+			curr_yaw = (double) yaw;
+			
+			if (!first_loop)
+			{	
+				
+				delta_x   = (curr_x - last_x);
+				delta_y   = (curr_y - last_y);
+				delta_yaw = (curr_yaw - last_yaw);
+			}
+						
+			last_x = curr_x;
+			last_y = curr_y;
+			last_yaw = curr_yaw;
+			
+			if (first_loop && transform_present) 
+			{
+				first_loop = false;
+				//ROS_INFO("start moving pc!....");	
+			}
+			
+			
+			
+			th_base_orig += delta_yaw;
+			x_base_orig += delta_x;
+			y_base_orig += delta_y;
+			
 			
 			//Rot Matrix
+			
+			
 			Rot(0,0) =  cos(th_base_orig);		Rot(0,1) =  sin(th_base_orig);
 			
 			Rot(1,0) = -sin(th_base_orig);		Rot(1,1) =  cos(th_base_orig);
@@ -157,25 +206,21 @@ class PathfollowerClass
 				sub_goal_y = path.poses[path_counter].pose.position.y;
 								
 				
-				//debug
-				//sub_goal_x = 5;
-				//sub_goal_y = 3;
-				//debug
 				
 				
 				double goal_dist = sqrt(pow(dx,2)+pow(dy,2));
 				if (goal_dist < sub_goal_err)
 				{ 
 					goal_achieved = true;
-					ROS_ERROR("Goal_distance is %f so the sub goal is achieved!!!!", goal_dist);
+					//ROS_ERROR("Goal_distance is %f so the sub goal is achieved!!!!", goal_dist);
 				}
 				if(goal_achieved)
 				{
 					//ROS_INFO("Sub_goal Achieved!");
 					path_counter ++;
 					
-					ROS_WARN(" sub goal:    x:%f,    y:%f ",  sub_goal_x, sub_goal_y);
-					ROS_INFO("curr pose:    x:%f,    y:%f ", x_base_orig, y_base_orig);
+					//ROS_WARN(" sub goal:    x:%f,    y:%f ",  sub_goal_x, sub_goal_y);
+					//ROS_INFO("curr pose:    x:%f,    y:%f ", x_base_orig, y_base_orig);
 					
 					goal_achieved = false;
 				}
@@ -210,8 +255,8 @@ class PathfollowerClass
 	ros::NodeHandle n_;
 	//Subscribers
 	ros::Subscriber SubFromPath_;
-	ros::Subscriber SubFromOdom_;
-	ros::Subscriber SubFromControllerSpeed_;
+	//ros::Subscriber SubFromOdom_;
+	//ros::Subscriber SubFromControllerSpeed_;
 	
 	//Publishers
 	ros::Publisher speed_pub_;

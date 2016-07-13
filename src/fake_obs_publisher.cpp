@@ -91,12 +91,15 @@ class FakeObstacleCloud
     		cloud.header.stamp = ros::Time::now();
     		//obstcle_pub_.publish(cloud);
     		//ROS_WARN("Fake obstacle cloud pubished!......");
-    		ros::Rate rate(0.2);
+    		
+    		
+    		ros::Rate rate(1.0);
+    		
     		while(ros::ok())
     		{
     			
     			obstcle_pub_.publish(cloud);
-    			ROS_WARN("Fake obstacle cloud pubished!......");
+    			//ROS_WARN("Fake obstacle cloud pubished!......");
 			
 			rate.sleep();
 			ros::spinOnce();
