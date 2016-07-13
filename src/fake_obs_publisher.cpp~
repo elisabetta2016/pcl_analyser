@@ -93,13 +93,13 @@ class FakeObstacleCloud
     		//ROS_WARN("Fake obstacle cloud pubished!......");
     		
     		
-    		ros::Rate rate(0.1);
+    		ros::Rate rate(0.2);
     		
     		while(ros::ok())
     		{
     			
     			obstcle_pub_.publish(cloud);
-    			ROS_WARN("Fake obstacle cloud pubished!......");
+    			//ROS_WARN("Fake obstacle cloud pubished!......");
 			
 			rate.sleep();
 			ros::spinOnce();

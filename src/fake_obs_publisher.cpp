@@ -93,7 +93,7 @@ class FakeObstacleCloud
     		//ROS_WARN("Fake obstacle cloud pubished!......");
     		
     		
-    		ros::Rate rate(1.0);
+    		ros::Rate rate(0.1);
     		
     		while(ros::ok())
     		{

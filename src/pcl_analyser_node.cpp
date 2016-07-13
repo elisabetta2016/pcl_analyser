@@ -121,12 +121,12 @@ class ObstacleDetectorClass
 			obstcle_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-			path_trace_pub_        = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
+			path_trace_pub_           = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
 			
 			repuslive_force_pub_	  = n_.advertise<geometry_msgs::Vector3> ("force", 1);
 			path_pub_	  	  = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
 			path_solution_pub_        = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
-			
+			path_colision_pub_        = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
 
     			
     			// Range image params
@@ -328,6 +328,18 @@ class ObstacleDetectorClass
 	
 	}
 	
+	bool is_in_costmap(float x, float y)
+	{
+		double margin = 0.1;
+		bool out = false;
+		if ( x < ( costmap_x_size + origin_x - margin) && x > (-0.0 + origin_x + margin))
+		{
+			if ( y < (0 - origin_y - margin) && y > (-costmap_y_size - origin_y + margin) ) out = true;
+		}
+		
+		return out;
+	}
+	
 	void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_2d)
 	{
 	
@@ -338,14 +350,14 @@ class ObstacleDetectorClass
     
 	for (size_t i = 0; i < obs_2d->points.size (); ++i)
 	{
-	
-		master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my);
-		master_grid_ros->updateBounds(0,cell_x-1,0,cell_x-1);
-		
-		
-		
-		master_grid_->setCost(mx,my, LETHAL_OBSTACLE);
-		
+	    	if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
+	    	{
+			master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
+			master_grid_ros->updateBounds(0,cell_x-1,0,cell_x-1);
+			master_grid_->setCost(mx,my, LETHAL_OBSTACLE);
+			ROS_INFO_STREAM_ONCE("x_world" << obs_2d->points[i].x << "x_cell" << mx);
+			ROS_INFO_STREAM_ONCE("y_world" << obs_2d->points[i].y << "y_cell" << my);
+	    	}	
 	
 	
 	}  
@@ -366,15 +378,16 @@ class ObstacleDetectorClass
     	unsigned char cost;
 	for (size_t i = 0; i < obs_2d.points.size (); ++i)
 	{
-	
-		master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my);
-		master_grid_ros->updateBounds(0,cell_x-1,0,cell_x-1);
+		if ( is_in_costmap(obs_2d.points[i].x,obs_2d.points[i].y) )
+		{	
+			master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
+			master_grid_ros->updateBounds(0,cell_x-1,0,cell_x-1);
 		
-		if (obs_2d.points[i].intensity == 200) cost = INFLATED_OBSTACLE;
-		else cost = LETHAL_OBSTACLE;
+			if (obs_2d.points[i].intensity == 200) cost = INFLATED_OBSTACLE;
+			else cost = LETHAL_OBSTACLE;
 		
-		master_grid_->setCost(mx,my, cost);
-		
+			master_grid_->setCost(mx,my, cost);
+	    	}	
 	
 	
 	} 
@@ -535,7 +548,7 @@ class ObstacleDetectorClass
 		float V_left = msg->Front_Left_Track_Speed;
 		
 		float V_in     = (V_right + V_left) / 2  ;
-		float Omega_in = (V_right - V_left) / 0.8; //to be checked
+		float Omega_in = (-V_right + V_left) / 0.8; //to be checked
 		
 		
   		// inputs
@@ -546,7 +559,7 @@ class ObstacleDetectorClass
   			VectorXf Omega_input;
   			Vector2f V_curr_c;
   			V_curr_c(0) = V_in;
-  			V_curr_c(1) = Omega_in;
+  			V_curr_c(1) = Omega_in/20;
   		
   			V_input.setOnes(sample);
   			Omega_input.setOnes(sample);
@@ -554,8 +567,8 @@ class ObstacleDetectorClass
   			Omega_input = Omega_in * Omega_input;
   			//ROS_WARN_STREAM_ONCE("Lin Speed tra " << V_input);
   		
-  		
-  			double Ts = 8.0;
+  			double D = 3;   //Watching horizon
+  			double Ts = std::min( 8.00 , D/fabs(V_in));
   			/* x and x_dot structure
   				 | x  |
   				 | y  |
@@ -572,22 +585,31 @@ class ObstacleDetectorClass
   			x.setZero(3,sample);
   		
   			//invoke
-  		//ROS_INFO(" ---- >> V_in: %f, Omega_in:%f",V_in,Omega_in );
-  		
-  		
   			x = Rover_vw(V_input, Omega_input, b, Ts,x_0,x_dot_0 , sample, x_dot_f);
-  			ROS_WARN_STREAM_ONCE("trajectory is " << x);
-  		//ROS_INFO("trajectory length:%d   x_mid:%f", x.cols(), x(0,sample-8));
-  	
-  		//std::cout << x.cols() << "\n";
-  		
+  			//ROS_WARN_STREAM_ONCE("trajectory is " << x);
+  			
+  			//Publish the path
+  			nav_msgs::Path robot_path;			
+			robot_path.header.stamp = ros::Time::now();
+			robot_path.header.frame_id = "base_link";
+			robot_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
+  			for(size_t i=0; i < sample; i++)
+			{
+
+				robot_path.poses[i].pose.position.x = x(0,i);
+				robot_path.poses[i].pose.position.y = x(1,i);
+				robot_path.poses[i].pose.position.z = 0.0;
+			}
+			path_colision_pub_.publish(robot_path);
+  			//Publish end
+  			
   			PATH_COST cost = Cost_of_path(x, master_grid_);
   			ROS_WARN_ONCE("lethal cost = %f",cost.Lethal_cost);
-  		//ROS_WARN("lethal cost:%f, collision:%d", cost.Lethal_cost,cost.collision);
+  	
   		
   			if (cost.collision || (cost.Lethal_cost > 0.0))
   			{
-  		// some logic to be implemented and the best path to be find by the method
+  		
   				if (!goal_present)
   				{
   					//ROS_INFO("trajectory");
@@ -1047,12 +1069,14 @@ class ObstacleDetectorClass
 		
 			costmap_x_size = 6.0; // meters
 			costmap_y_size = 6.0; // meters
+			origin_x = -1.0;
+			origin_y = -3.0;
 			//costmap_res = 0.2;    // meters/cell
 			
 			cell_x = (unsigned int) floor(abs(costmap_x_size/costmap_res)); //cell
 			cell_y = (unsigned int) floor(abs(costmap_y_size/costmap_res)); //cell
 			
-			master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,-1.0,-3.0,0);
+			master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,origin_x,origin_y,0);
 			n = &n_;
     			
     			global_frame = "base_link";
@@ -1193,6 +1217,7 @@ class ObstacleDetectorClass
 		ros::Publisher path_pub_;
 		ros::Publisher path_solution_pub_;
 		ros::Publisher path_trace_pub_;
+		ros::Publisher path_colision_pub_;
 		
 		geometry_msgs::Vector3 repulsive_force;
 		
@@ -1210,6 +1235,8 @@ class ObstacleDetectorClass
 		costmap_2d::Costmap2D* master_grid_;
 		double costmap_x_size;
 		double costmap_y_size;
+		double origin_x;
+		double origin_y;
 		double costmap_res;
 		pcl::PointCloud<pcl::PointXYZI> cost_map_cloud;
 		unsigned int cell_x;
