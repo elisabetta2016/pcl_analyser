@@ -11,6 +11,7 @@
 #include <geometry_msgs/Vector3.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
+#include "donkey_rover/Speed_control.h"
 
 #include <Eigen/Dense> 
 using namespace Eigen;
@@ -28,6 +29,7 @@ class PathfollowerClass
 		
 		speed_pub_	  	  = n_.advertise<geometry_msgs::Vector3> ("body_error", 1);
 		testodom_pub_		  = n_.advertise<nav_msgs::Odometry> ("test_odom", 1);
+		speed_control_pub_	  = n_.advertise<donkey_rover::Speed_control> ("speed_control", 1);
 		
 		//Initializer
 		new_path = false;
@@ -126,7 +128,7 @@ class PathfollowerClass
 		double delta_y   = 0.0;
 		double delta_yaw = 0.0;
 		tf::TransformListener listener;
-		
+		donkey_rover::Speed_control speed_control;
 		
 		while (ros::ok())
 		{
@@ -172,8 +174,8 @@ class PathfollowerClass
 			
 			
 			th_base_orig += delta_yaw;
-			x_base_orig += delta_x;
-			y_base_orig += delta_y;
+			x_base_orig += delta_y;
+			y_base_orig += -delta_x;
 			
 			
 			//Rot Matrix
@@ -204,8 +206,12 @@ class PathfollowerClass
 			{
 				sub_goal_x = path.poses[path_counter].pose.position.x;
 				sub_goal_y = path.poses[path_counter].pose.position.y;
-								
 				
+				//Enabling RLC
+				speed_control.RLC = true;
+				speed_control.CMD = false;				
+				speed_control.JOY = true;
+				speed_control_pub_.publish(speed_control);
 				
 				
 				double goal_dist = sqrt(pow(dx,2)+pow(dy,2));
@@ -216,7 +222,7 @@ class PathfollowerClass
 				}
 				if(goal_achieved)
 				{
-					//ROS_INFO("Sub_goal Achieved!");
+					ROS_INFO("Sub_goal Achieved!");
 					path_counter ++;
 					
 					ROS_WARN(" sub goal:    x:%f,    y:%f ",  sub_goal_x, sub_goal_y);
@@ -229,6 +235,10 @@ class PathfollowerClass
 				if(path_counter == path_size)
 				{
 					new_path = false;
+					
+					//Disableing RLC
+					speed_control.RLC = false;
+					speed_control_pub_.publish(speed_control);
 				}
 				
 				
@@ -261,6 +271,8 @@ class PathfollowerClass
 	//Publishers
 	ros::Publisher speed_pub_;
 	ros::Publisher testodom_pub_;
+	ros::Publisher speed_control_pub_;
+	
 	
 	bool goal_achieved;
 	bool new_path;	
