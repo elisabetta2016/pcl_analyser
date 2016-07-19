@@ -39,11 +39,13 @@ class PathfollowerClass
 		x_base_orig  = 0.0;
 		y_base_orig  = 0.0;
 		th_base_orig = 0.0;
+		th_bias = 0.0;
 		sub_goal_x = b;
 		sub_goal_y = 0.0;
 		
 		sub_goal_err = 0.12;
 		goal_achieved = false;
+		set_th_bias = false;
 		
 		current_time = ros::Time::now();
 		last_time = ros::Time::now();
@@ -55,8 +57,12 @@ class PathfollowerClass
 		ROS_INFO("OBSTACLE AVOIDANCE ACTIVATED: new path received");
 		path = *msg;
 		new_path = true;
+		set_th_bias = true;
 		path_size = path.poses.size();
-		path_counter = 0;		
+		path_counter = 0;
+		
+		x_base_orig  = 0.0;
+		y_base_orig  = 0.0;		
 
 		
 	}
@@ -153,11 +159,22 @@ class PathfollowerClass
 			M.getRPY(roll,pitch,yaw,(unsigned int) 1);
 			curr_yaw = (double) yaw;
 			
+			
+			if (set_th_bias && transform_present)
+			{
+				th_bias = curr_yaw - M_PI/2;
+				th_base_orig = 0.0;
+				set_th_bias = false;
+			}
+			
 			if (!first_loop)
 			{	
 				
-				delta_x   = (curr_x - last_x);
-				delta_y   = (curr_y - last_y);
+				delta_x   =  (curr_x - last_x) * cos(th_bias)  +  (curr_y - last_y)* sin(th_bias);
+				delta_y   = -(curr_x - last_x) * sin(th_bias)  +  (curr_y - last_y)* cos(th_bias);
+				//delta_x   = (curr_x - last_x); 
+				//delta_y   = (curr_y - last_y);
+				
 				delta_yaw = (curr_yaw - last_yaw);
 			}
 						
@@ -168,10 +185,10 @@ class PathfollowerClass
 			if (first_loop && transform_present) 
 			{
 				first_loop = false;
+			
+				//ROS_ERROR("initial yaw: %f ",curr_yaw);
 				//ROS_INFO("start moving pc!....");	
 			}
-			
-			
 			
 			th_base_orig += delta_yaw;
 			x_base_orig += delta_y;
@@ -236,6 +253,7 @@ class PathfollowerClass
 				{
 					new_path = false;
 					
+					
 					//Disableing RLC
 					speed_control.RLC = false;
 					speed_control_pub_.publish(speed_control);
@@ -251,7 +269,21 @@ class PathfollowerClass
 				
 			}
 			
+			//Publish Odom
 			
+			nav_msgs::Odometry odom;
+    			odom.header.stamp = current_time;
+    			odom.header.frame_id = "base_link";
+
+    		
+    			odom.pose.pose.position.x = x_base_orig;
+    			odom.pose.pose.position.y = y_base_orig;
+    			odom.pose.pose.position.z = 0.0;
+    		
+    			geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th_base_orig);
+    			odom.pose.pose.orientation = odom_quat;
+    			testodom_pub_.publish(odom);
+			//Publish Odom .
 			
 			speed_pub_.publish(body_error);
 			ros::spinOnce();
@@ -276,12 +308,14 @@ class PathfollowerClass
 	
 	bool goal_achieved;
 	bool new_path;	
+	bool set_th_bias;
 	//double Vx;
 	//double Vy;
 	//double Vth;
 	double x_base_orig;
 	double y_base_orig;
 	double th_base_orig;
+	double th_bias;
 	double sub_goal_x;
 	double sub_goal_y;
 	double sub_goal_err;	

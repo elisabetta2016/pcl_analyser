@@ -100,6 +100,8 @@ double Goal_gain;
 double Cost_gain;
 double Speed_gain;
 double omega_x;
+double Dist_passed_threshold = 0.8;
+int path_piece = 1;
 
 double Watching_hor = 3.0; //Default value
 
@@ -635,7 +637,7 @@ class ObstacleDetectorClass
   				if (!pso_analyse)
   				{
   					//ROS_WARN(" ---- >> V_in: %f, Omega_in:%f",V_in,Omega_in );
-  					output_tra = PSO_path_finder(nav_goal, V_curr_c, particle_no, iteration, output, solution_found);
+  					output_tra = PSO_path_finder(nav_goal, V_curr_c, particle_no, iteration, path_piece, output, solution_found);
   					ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
   					
 					pso_analyse = true;  			
@@ -757,10 +759,10 @@ class ObstacleDetectorClass
 	}
   		
 	
-	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,int particle_no,int iteration,VectorXf output, bool solution_found)
+	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,int particle_no,int iteration,int piece_no,VectorXf output, bool solution_found)
 	{
 	ROS_INFO("PSO Starts!... GOAL:");
-	std::cout << Goal << std::endl;
+	if(demo_) std::cout << Goal << std::endl;
 	
 	/*       particle structure  
 	       n Particle and m piece
@@ -774,7 +776,7 @@ class ObstacleDetectorClass
 	*/
 	
 	//Definition
-	int piece_no = 3;
+	//int piece_no = 1;
 	MatrixXf x;  			//patricle
 	VectorXf x_best(2*piece_no);
 	VectorXf G(2*piece_no);
@@ -1015,6 +1017,7 @@ class ObstacleDetectorClass
 		n_pr.param("pso_speed_gain", Speed_gain, 0.0);
 		n_pr.param("pso_particle_no", particle_no, 10);
 		n_pr.param("pso_iteration", iteration, 5);
+		n_pr.param("path_piece_no", path_piece, 1);
 		n_pr.param("omega_x", omega_x, 0.3);
 		
 		n_pr.param("Travel_cost_inc", Travel_cost_inc, 0.0);
@@ -1102,11 +1105,15 @@ class ObstacleDetectorClass
 			{	
 				
 				float delta_x   =  (curr_x - last_x) * cos(curr_yaw) + (curr_y - last_y)* sin(curr_yaw);
-				float delta_y   = -(curr_x - last_x) * sin(curr_yaw) + (curr_y - last_y)* cos(curr_yaw);;
+				float delta_y   = -(curr_x - last_x) * sin(curr_yaw) + (curr_y - last_y)* cos(curr_yaw);
 				float delta_yaw = (curr_yaw - last_yaw);
 				
 				distance_passed += sqrt(pow(delta_x,2)+pow(delta_y,2));
-				
+				if (distance_passed > Dist_passed_threshold)
+				{
+					distance_passed = 0.0;
+					//pso_analyse = false;
+				}
 
 				/*
 				| cos(yaw)  sin(yaw) 0  x|
