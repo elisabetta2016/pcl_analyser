@@ -13,20 +13,20 @@
     	<param name="pso_cost_gain"  value="1.00" />
     	<param name="pso_particle_no"  value="35" />
         <param name="pso_iteration"  value="15" />
-        <param name="path_piece_no"  value="3" />
-        <param name="omega_x"  value="0.3" />
+        <param name="path_piece_no"  value="5" />
+        <param name="omega_x"  value="0.4" />
         
         <param name="Travel_cost_inc"  value="0.0" />
         <param name="Lethal_cost_inc"  value="10.0" />
         <param name="Inflation_cost_inc"  value="3.0" />
         <param name="b"  value="0.4" />
         <param name="Watching_horizon"  value="3.2" />
-        <param name="sample"  value="15" />
+        <param name="sample"  value="20" />
         <param name="demo_mode"  value="false" />
         
   </node>
 <!-- comment -->
-  <node type="path_follower" pkg="pcl_analyser" name="path_follower"/>  <!-- comment:    output="screen" -->
+  <node type="path_follower" pkg="pcl_analyser" name="path_follower"/> 
 
   <node type="follow.py" pkg="donkey_rover" name="follow" output="screen">
   	<param name="distance_b"  value="0.4" />

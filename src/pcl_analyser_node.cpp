@@ -637,7 +637,7 @@ class ObstacleDetectorClass
   				if (!pso_analyse)
   				{
   					//ROS_WARN(" ---- >> V_in: %f, Omega_in:%f",V_in,Omega_in );
-  					output_tra = PSO_path_finder(nav_goal, V_curr_c, particle_no, iteration, path_piece, output, solution_found);
+  					output_tra = PSO_path_finder(nav_goal, V_curr_c, Ts, particle_no, iteration, path_piece, output, solution_found);
   					ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
   					
 					pso_analyse = true;  			
@@ -692,7 +692,7 @@ class ObstacleDetectorClass
 	}
 	
 	
-	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f x_dot_f)
+	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f)
 	{
 
 	MatrixXf x;
@@ -759,7 +759,7 @@ class ObstacleDetectorClass
 	}
   		
 	
-	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,int particle_no,int iteration,int piece_no,VectorXf output, bool solution_found)
+	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found)
 	{
 	ROS_INFO("PSO Starts!... GOAL:");
 	if(demo_) std::cout << Goal << std::endl;
@@ -841,7 +841,7 @@ class ObstacleDetectorClass
 	
 	x_best = G;
   		
-  	double Ts= 3.0;
+  	//double Ts= 3.0;
   	Vector3f x_0;
   	x_0 << laser_dist, 0.0, 0.0;
   	Vector3f x_dot_0;
