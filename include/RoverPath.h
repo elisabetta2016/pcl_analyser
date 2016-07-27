@@ -25,6 +25,12 @@ struct CELL{
 	unsigned int y;
 	unsigned char c;
 };
+//define global variables
+extern double omega_x;
+extern double laser_dist;
+extern bool demo_;
+extern double b;
+
 
 class RoverPathClass
 {
@@ -46,10 +52,9 @@ class RoverPathClass
 	
 	PATH_COST Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* grid);
 	
-	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f x_dot_f);
+	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f);
 	
-	MatrixXf PSO_path_finder(Vector3f Goal,float D,Vector2f V_curr_c,VectorXf output, bool solution_found);
-	
+	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found);
 	protected:
 	
 	costmap_2d::Costmap2D* master_grid_;
@@ -71,7 +76,7 @@ class RoverPathClass
   	double Travel_cost_inc;
 	double Lethal_cost_inc;
 	double Inf_cost_inc;
-  	
+  	float path_z_inc;
   	
 };
-#endif
+#endif 
