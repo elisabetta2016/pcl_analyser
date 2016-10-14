@@ -608,7 +608,7 @@ class ObstacleDetectorClass
 		testcallback();  /// <<-- Test
 		
 	}
-	
+	/*
 	void test_lookuptable();
 	{
 		MatrixXf tra;
@@ -626,7 +626,7 @@ class ObstacleDetectorClass
 			
 		//simulating the trajectory
 		tra = Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
-	}
+	}*/
 
 	void testcallback()
 	{
