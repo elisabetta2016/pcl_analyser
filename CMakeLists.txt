@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   laser_assembler
   costmap_2d
+  hector_elevation_mapping
 )
 
 ## System dependencies are found with CMake's conventions

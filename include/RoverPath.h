@@ -47,6 +47,10 @@ class RoverPathClass
 	void update_costmap(costmap_2d::Costmap2D* grid_);
 	
 	void traj_to_cloud(MatrixXf tra);
+
+	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
+
+	Matrix3f TranMatrix2D(float theta, float t_x, float t_y);
 	
 	pcl::PointCloud<pcl::PointXYZ> get_path_trace_cloud();
 	

@@ -34,15 +34,12 @@
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 
-// PCL keypoints headers
-#include <pcl/features/range_image_border_extractor.h>
-#include <pcl/keypoints/narf_keypoint.h>
-#include <pcl/range_image/range_image.h>
+
 
 #include <pcl/keypoints/iss_3d.h>
 #include <pcl/common/transforms.h>
 //Costmap
-
+#include <costmap_2d/static_layer.h>
 #include <costmap_2d/layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_2d_publisher.h>
@@ -53,6 +50,9 @@
 
 #define INFLATED_OBSTACLE 200
 #define WIDTH 255 //default
+// compute linear index for given map coords
+#define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
+
 #include "RoverPath.h" 
 #include <vector>
 
@@ -62,8 +62,7 @@ typedef pcl::PointXYZ PointXYZ;
 
 using namespace Eigen;
 typedef pcl::PointXYZ PointType;
-// Range image coordinate frame 
-pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAME;
+
 using costmap_2d::LETHAL_OBSTACLE;
 
 
@@ -118,9 +117,11 @@ class ObstacleDetectorClass
 
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
+
 			
 			subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
 			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
+			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
 			
 			// publishers
 			obstcle_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
@@ -144,12 +145,26 @@ class ObstacleDetectorClass
 			repulsive_force.y = 0.0;
 			repulsive_force.z = 0.0;
 			
-			
+			first_elevation_received = true;
 			
 			
 			//obstacle avoidance params
 			goal_present = false;
+
+			//Global costmap params
+			global_frame = "base_link";
+			topic_name = "/global_costmap";
+			costmap_x_size = 6.0; // meters
+			costmap_y_size = 6.0; // meters
+			origin_x = -1.0;
+			origin_y = -3.0;
 			
+			//Elevation costmap params
+		        elevation_resolution_xy = 0.05;
+    			elevation_origin_x = 0.493;
+    			elevation_origin_y = -1.5;
+    			elevation_costmap_x_size = 3.0;
+    			elevation_costmap_y_size = 3.0;
 			
     			
 	}
@@ -547,15 +562,134 @@ class ObstacleDetectorClass
 	   }
 	
 	}
-	
-  	
- 	  	
+	 	  	
 	void GoalCallback(const geometry_msgs::Vector3::ConstPtr& msg)
 	{
 		nav_goal(0,0) = msg->x;
 		nav_goal(0,1) = msg->y;
 		nav_goal(0,2) = 0.0; 
 		goal_present = true; 
+	}
+
+	void ElevationCallback(const nav_msgs::OccupancyGrid::ConstPtr& new_map)
+	{
+	//ROS_INFO("received!");
+		
+		unsigned int size_x = new_map->info.width, size_y = new_map->info.height;
+	
+		if(first_elevation_received)
+		{
+			
+			double orig_x = new_map->info.origin.position.x;
+			double orig_y = new_map->info.origin.position.y;
+			elevation_grid_ = new costmap_2d::Costmap2D(size_x,size_y,new_map->info.resolution,orig_x,orig_y,0);
+			elevation_grid_ros = new costmap_2d::Costmap2DPublisher(n,elevation_grid_,"base_link","elevation22",false);
+			first_elevation_received = false;
+		}
+		unsigned int index = 0;
+		uint8_t temp;
+		int value;
+		for (unsigned int i = 0; i < size_y; ++i)
+ 		{
+			for (unsigned int j = 0; j < size_x; ++j)
+			{
+				temp = new_map->data[index];
+				
+				if(temp == 255) value = 255;
+				else value = floor(254*temp/100);
+				//ROS_INFO("temp is %d    value is %d", temp, value);
+				elevation_grid_ros->updateBounds(0,size_x,0,size_y-1);
+				elevation_grid_->setCost(j,i,(unsigned char) value);
+				++index;
+			}
+		}
+		
+		elevation_grid_ros->publishCostmap();
+		testcallback();  /// <<-- Test
+		
+	}
+	
+	void test_lookuptable();
+	{
+		MatrixXf tra;
+		tra.setZero( 3, 13);
+  		VectorXf V_in;
+  		VectorXf Omega_in;
+		RoverPathClass Rov(0.0, 13,master_grid_);
+		//	    01    02    03    04    05    06    07    08    09    10    11    12    13
+		V_in <<      1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1;
+		Omega_in<<   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0;
+		tra = Rov.Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
+		
+		
+		
+			
+		//simulating the trajectory
+		tra = Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
+	}
+
+	void testcallback()
+	{
+		double Ts = 3.00;
+		Vector2f V_curr_c;
+  		V_curr_c(0) = 0.8;
+  		V_curr_c(1) = 0.3;
+		nav_goal(0) = 2.0;
+  		nav_goal(1) = 1.0;
+  		nav_goal(2) = 0.0;
+		int sample_ = sample;
+		double b_ = 0.0;
+		RoverPathClass Rov(b_,sample_,master_grid_);
+		VectorXf output(6);
+  		MatrixXf output_tra;
+  		bool solution_found;
+		output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
+		
+		nav_msgs::Path robot_opt_path;			
+		robot_opt_path.header.stamp = ros::Time::now();
+		robot_opt_path.header.frame_id = "base_link";
+		robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
+  		for(size_t i=0; i < sample; i++)
+		{
+
+			robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
+			robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
+			robot_opt_path.poses[i].pose.position.z = 0.0;
+		}
+		path_solution_pub_.publish(robot_opt_path);
+  		
+		//Invoking the Rover parts function
+		
+		//RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm)
+		MatrixXf FrontRightTrack;
+		MatrixXf FrontLeftTrack;
+		MatrixXf RearRightTrack;
+		MatrixXf RearLeftTrack; 
+		MatrixXf Arm;
+		/*
+    		FrontRightTrack.Zero(3,sample);
+    		FrontLeftTrack.Zero(3,sample);
+    		RearRightTrack.Zero(3,sample);
+   		RearLeftTrack.Zero(3,sample);
+    		Arm.Zero(3,sample);*/
+
+		Rov.Rover_parts(output_tra, FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
+
+		nav_msgs::Path robot_path;			
+		robot_path.header.stamp = ros::Time::now();
+		robot_path.header.frame_id = "base_link";
+		robot_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
+  		for(size_t i=0; i < sample; i++)
+		{
+
+			robot_path.poses[i].pose.position.x = Arm(0,i);
+			robot_path.poses[i].pose.position.y = Arm(1,i);
+			robot_path.poses[i].pose.position.z = 0.0;
+		}
+		path_colision_pub_.publish(robot_path);
+		
+							
+  		//ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
 	}
 	
 	void TrackCallback(const donkey_rover::Rover_Track_Speed::ConstPtr& msg)
@@ -603,7 +737,7 @@ class ObstacleDetectorClass
   			
   			//Defining the instant of RoverPathClass
   			int sample_ = sample;
-			double b_ = b;
+			double b_ = b; //b
   			RoverPathClass Rov(b_,sample_,master_grid_);
   			
   			//invoke
@@ -717,7 +851,7 @@ class ObstacleDetectorClass
 	}
 	return cost;
 	}
-		
+
 	void run()
 	{
 	
@@ -767,21 +901,13 @@ class ObstacleDetectorClass
 		
 		
 		//costmap params
-		
-		costmap_x_size = 6.0; // meters
-		costmap_y_size = 6.0; // meters
-		origin_x = -1.0;
-		origin_y = -3.0;
-		
-		
 		cell_x = (unsigned int) floor(abs(costmap_x_size/costmap_res)); //	#cell_x
 		cell_y = (unsigned int) floor(abs(costmap_y_size/costmap_res)); //	#cell_y
-		
+		elevation_cell_x = floor(abs(elevation_costmap_x_size/elevation_resolution_xy));
+		elevation_cell_y = floor(abs(elevation_costmap_y_size/elevation_resolution_xy));
+
 		master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,origin_x,origin_y,0);
 		n = &n_;
-    			
-    		global_frame = "base_link";
-		topic_name = "/global_costmap";
 			
 		master_grid_ros = new costmap_2d::Costmap2DPublisher(n,master_grid_,global_frame,topic_name,false);
 		//costmap end
@@ -905,9 +1031,11 @@ class ObstacleDetectorClass
 		 
 		// Subscribers
 		ros::Subscriber SubFromCloud_;
-		
 		ros::Subscriber subFromTrackSpeed_;
 		ros::Subscriber subFromGoal_;
+		ros::Subscriber subFromElevationCostmap_;
+		
+		
 		// Publishers
 		ros::Publisher obstcle_pub_;
 		ros::Publisher obstcle_proj_pub_;
@@ -928,10 +1056,12 @@ class ObstacleDetectorClass
 		sensor_msgs::PointCloud2 output_cloud; 
 		sensor_msgs::PointCloud2 cloud_obstacle_projected; 
 		sensor_msgs::PointCloud2 costmap_cl;
-		sensor_msgs::PointCloud2 key_cloud;
+		
 
 		//costmap variables
 		costmap_2d::Costmap2D* master_grid_;
+		costmap_2d::Costmap2D* elevation_grid_;
+		
 		double costmap_x_size;
 		double costmap_y_size;
 		double origin_x;
@@ -940,14 +1070,25 @@ class ObstacleDetectorClass
 		pcl::PointCloud<pcl::PointXYZI> cost_map_cloud;
 		unsigned int cell_x;
 		unsigned int cell_y;
-				
+		unsigned int cell_elevation_x;
+		unsigned int cell_elevation_y;
+		
 		std::string global_frame, topic_name;
 		costmap_2d::Costmap2DPublisher* master_grid_ros;
-		
+		costmap_2d::Costmap2DPublisher* elevation_grid_ros;
+		// Elevation costmap params
+    		double elevation_resolution_xy;
+    		double elevation_origin_x;
+    		double elevation_origin_y;
+    		double elevation_costmap_x_size;
+    		double elevation_costmap_y_size;
+		unsigned int elevation_cell_x;
+		unsigned int elevation_cell_y;
 		
 		float angular_resolution;
 		float support_size;
 		bool setUnseenToMaxRange;
+		bool first_elevation_received;
 
 		//Obstacle avoidance variables
 		Vector3f nav_goal;

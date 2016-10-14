@@ -101,8 +101,13 @@ PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* gri
 	}
 		
 MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f)
-	{
-    
+{
+        /*
+	Structure of x and x_dot
+	| x  |
+	| y  |
+	| th |
+	*/
 	MatrixXf x;
 	x.setZero(3,sample);
     	MatrixXf x_dot;
@@ -116,7 +121,10 @@ MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double
     	
     	x_dot.setZero(3,sample);
     	
-   	x.col(0) = x_0;
+   	x(0,0) = x_0(0);
+   	x(1,0) = x_0(1);
+   	x(2,0) = x_0(2);
+
     	NE_dot_temp.setZero(2,sample);
    	NE_dot_temp.col(0) = x_dot_0.topRows(2);
     
@@ -147,28 +155,106 @@ MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double
     	
     	
 	return x;  
-	}
+}
 	
-	void RoverPathClass::traj_to_cloud(MatrixXf tra)
+void RoverPathClass::traj_to_cloud(MatrixXf tra)
+{
+		
+	for(size_t i = 0; i < tra.cols(); i++)
 	{
-		
-		for(size_t i = 0; i < tra.cols(); i++)
-		{
-			pcl::PointXYZ point;
-			point.x = tra(0,i);
-			point.y = tra(1,i);
-			point.z = 0.0;
+		pcl::PointXYZ point;
+		point.x = tra(0,i);
+		point.y = tra(1,i);
+		point.z = 0.0;
 			
 			
-			path_trace_pcl.points.push_back(point);
-		}
-		
+		path_trace_pcl.points.push_back(point);
 	}
+		
+}
 	
 //updated function
+void RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm)
+{
+
+    Vector3f FRT_vector, FLT_vector, RRT_vector, RLT_vector, Arm_vector, temp;
+    MatrixXf temp_mat;
+    int length  =  trajectory.cols();
+
+    FrontRightTrack.setZero(3,length);
+    FrontLeftTrack.setZero(3,length);
+    RearRightTrack.setZero(3,length);
+    RearLeftTrack.setZero(3,length);
+    Arm.setZero(3,length);
+
+//ROS_WARN_STREAM("trajectory is " << trajectory);
+    
+
+    FRT_vector <<  0.265,-0.3965,1.0;
+    FLT_vector <<  0.265, 0.3965,1.0;
+    RRT_vector << -0.265,-0.3965,1.0;
+    RLT_vector << -0.265, 0.3965,1.0;
+    Arm_vector << -0.350,    0.0,1.0;
+    temp       <<    0.0,    0.0,1.0;
+    Matrix3f Trans;
+
+    for(int i=0; i < length; i++ )
+    {
+	Trans = TranMatrix2D(trajectory(2,i),trajectory(0,i),trajectory(1,i));
+	//ROS_ERROR_STREAM(Trans);
+	//ROS_WARN_STREAM(FLT_vector);
+	//ROS_INFO_STREAM(Trans*FLT_vector);
+
+	temp  = Trans * FRT_vector;
+	
+	FrontRightTrack(0,i) = temp(0);
+	FrontRightTrack(1,i) = temp(1);
+	FrontRightTrack(2,i) = temp(2);
+	
+
+	temp  = Trans * FLT_vector;
+	
+	FrontLeftTrack(0,i) = temp(0);
+	FrontLeftTrack(1,i) = temp(1);
+	FrontLeftTrack(2,i) = temp(2);
+	
+
+	temp  = Trans * RRT_vector;
+	
+	RearRightTrack(0,i) = temp(0);
+	RearRightTrack(1,i) = temp(1);
+	RearRightTrack(2,i) = temp(2);
+	
+
+	temp  = Trans * RLT_vector;
+	
+	RearLeftTrack(0,i) = temp(0);
+	RearLeftTrack(1,i) = temp(1);
+	RearLeftTrack(2,i) = temp(2);
+	
+
+	temp  = Trans * Arm_vector;
+	
+	Arm(0,i) = temp(0);
+	Arm(1,i) = temp(1);
+	Arm(2,i) = temp(2);
+	
+
+    }	
+    
+}
+
+Matrix3f RoverPathClass::TranMatrix2D(float theta, float t_x, float t_y)
+{
+	Matrix3f output;
+	output.setIdentity(3,3);
+	output(0,0) = cos(theta);    output(0,1) = -sin(theta);    output(0,2) = t_x;
+	output(1,0) = sin(theta);    output(1,1) =  cos(theta);    output(1,2) = t_y;
+	return output;
+}
 	
 MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found)
-	{
+{
 	ROS_INFO("PSO Starts!... GOAL:");
 	if(demo_) std::cout << Goal << std::endl;
 	
@@ -251,7 +337,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
   		
   	
   	Vector3f x_0;
-  	x_0 << laser_dist, 0.0, 0.0;
+  	x_0 << 0.0, 0.0, 0.0; //laser_dist, 0.0, 0.0;
   	Vector3f x_dot_0;
   	x_dot_0 << 0.0, 0.0, 0.0;
   	
@@ -355,4 +441,4 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	ROS_INFO_STREAM("best particle" << "\n" << G);
 	return output_tra;
     
-	}
+}
