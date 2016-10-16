@@ -3,6 +3,7 @@
 #include <math.h>
 #include <iostream>
 #include <string>
+
 // PCL specific includes
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -50,18 +51,18 @@
 
 #define INFLATED_OBSTACLE 200
 #define WIDTH 255 //default
-// compute linear index for given map coords
-#define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
+
 
 #include "RoverPath.h" 
 #include <vector>
 
 using std::vector;
 typedef pcl::PointXYZ PointXYZ;
-
+typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloudVar;
 
 using namespace Eigen;
-typedef pcl::PointXYZ PointType;
+
 
 using costmap_2d::LETHAL_OBSTACLE;
 
@@ -127,13 +128,13 @@ class ObstacleDetectorClass
 			obstcle_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-			path_trace_pub_           = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
+			path_trace_pub_       = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
 			
-			repuslive_force_pub_	  = n_.advertise<geometry_msgs::Vector3> ("force", 1);
-			path_pub_	  	  = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
-			path_solution_pub_        = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
-			path_colision_pub_        = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
-
+			repuslive_force_pub_  = n_.advertise<geometry_msgs::Vector3> ("force", 1);
+			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
+			path_solution_pub_    = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
+			path_colision_pub_    = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
+			lookuppath_pub_		  =  n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
     			
     			// Range image params
     			
@@ -192,7 +193,7 @@ class ObstacleDetectorClass
   	void compute_repulsive_force(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_proj)
   	{
   	
-  	for (size_t i = 0; i < obs_proj->points.size (); ++i)
+  	  for (size_t i = 0; i < obs_proj->points.size (); ++i)
 		{
 			repulsive_force.x +=  1/obs_proj->points[i].x;
 			repulsive_force.y +=  1/obs_proj->points[i].y;
@@ -204,141 +205,136 @@ class ObstacleDetectorClass
 	
 	void obstacle_find_Publish(const sensor_msgs::PointCloud2ConstPtr& cloud)
 	{
-	//ROS_INFO("Obstacle detection Starts!");
-  	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pcl (new pcl::PointCloud<pcl::PointXYZ>);
-  	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_pcl (new pcl::PointCloud<pcl::PointXYZ>);
-  	pcl::fromROSMsg(*cloud, *cloud_pcl);
+		//ROS_INFO("Obstacle detection Starts!");
+  		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pcl (new pcl::PointCloud<pcl::PointXYZ>);
+  		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_pcl (new pcl::PointCloud<pcl::PointXYZ>);
+  		pcl::fromROSMsg(*cloud, *cloud_pcl);
 
- 	*cloud_filtered_pcl = *cloud_pcl;
+ 		*cloud_filtered_pcl = *cloud_pcl;
 
   
   
   
-  	// Create the normal estimation class, and pass the input dataset to it
- 	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
-  	ne.setInputCloud (cloud_pcl);
-  	ne.setViewPoint(0,0,0.3);
+		// Create the normal estimation class, and pass the input dataset to it
+ 		pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  		ne.setInputCloud (cloud_pcl);
+  		ne.setViewPoint(0,0,0.3);
 
-  	// Create an empty kdtree representation, and pass it to the normal estimation object.
-  	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
-  	ne.setSearchMethod (tree);
+  		// Create an empty kdtree representation, and pass it to the normal estimation object.
+  		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+  		ne.setSearchMethod (tree);
 
-  	// normal datasets
-  	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+  		// normal datasets
+  		pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
 
-  	// Use all neighbors in a sphere of radius 10cm
-  	ne.setRadiusSearch (0.10);
+  		// Use all neighbors in a sphere of radius 10cm
+  		ne.setRadiusSearch (0.10);
 
-  	// Compute the features
-  	ne.compute (*cloud_normals);
-  	//std::cout << cloud_normals->points.size() << "\n";
+  		// Compute the features
+  		ne.compute (*cloud_normals);
+  		//std::cout << cloud_normals->points.size() << "\n";
   
   
-  	//Defining the Kdtree for finding the indicies
-  	pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+  		//Defining the Kdtree for finding the indicies
+  		pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 
-  	kdtree.setInputCloud (cloud_pcl);
-  	// Defining  the search point
-  	pcl::PointXYZ searchPoint;
+  		kdtree.setInputCloud (cloud_pcl);
+  		// Defining  the search point
+  		pcl::PointXYZ searchPoint;
 
-	// Starting to search and insert
-	pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_pcl (new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ> obstacle_nomal_pcl;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr obs_projected (new pcl::PointCloud<pcl::PointXYZ>);
-	int K = 1;
-	std::vector<int> pointIdxNKNSearch(K);
-	std::vector<float> pointNKNSquaredDistance(K);
+		// Starting to search and insert
+		pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_pcl (new pcl::PointCloud<pcl::PointXYZ>);
+		pcl::PointCloud<pcl::PointXYZ> obstacle_nomal_pcl;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr obs_projected (new pcl::PointCloud<pcl::PointXYZ>);
+		int K = 1;
+		std::vector<int> pointIdxNKNSearch(K);
+		std::vector<float> pointNKNSquaredDistance(K);
 	
-	obstacle_nomal_pcl = *cloud_filtered_pcl;
+		obstacle_nomal_pcl = *cloud_filtered_pcl;
 
-	for (size_t i = 0; i < cloud_filtered_pcl->points.size (); ++i)
-	{
-		searchPoint.x = cloud_filtered_pcl->points[i].x;
-		searchPoint.y = cloud_filtered_pcl->points[i].y;
-		searchPoint.z = cloud_filtered_pcl->points[i].z;
+		for (size_t i = 0; i < cloud_filtered_pcl->points.size (); ++i)
+		{
+			searchPoint.x = cloud_filtered_pcl->points[i].x;
+			searchPoint.y = cloud_filtered_pcl->points[i].y;
+			searchPoint.z = cloud_filtered_pcl->points[i].z;
 		
      		if ( kdtree.nearestKSearch (searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 )
-  		{
-  	
-  	
-			for (size_t j = 0; j < pointIdxNKNSearch.size (); ++j)
-			{
+  			{
+  	 	
+				for (size_t j = 0; j < pointIdxNKNSearch.size (); ++j)
+				{
 
-				//obstacle_nomal_pcl.points[pointIdxNKNSearch[j]].z = cloud_normals->points[pointIdxNKNSearch[j]].normal_z;
+					//obstacle_nomal_pcl.points[pointIdxNKNSearch[j]].z = cloud_normals->points[pointIdxNKNSearch[j]].normal_z;
 				
 				
-				if(cloud_normals->points[pointIdxNKNSearch[j]].normal_z < normal_threshold &&
+					if(cloud_normals->points[pointIdxNKNSearch[j]].normal_z < normal_threshold &&
 			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        > height_threshold &&
 			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        < height_max)
-			       	{
+			       		{
 			
-					obstacle_pcl->points.push_back (cloud_pcl->points[ pointIdxNKNSearch[j] ]);
-				}
-			}		
+							obstacle_pcl->points.push_back (cloud_pcl->points[ pointIdxNKNSearch[j] ]);
+						}
+				}		
 
+			}
+	
 		}
 	
-	}
+		obstacle_pcl->width = int (obstacle_pcl->points.size ());
+		obstacle_pcl->height = 1;
+		obstacle_pcl->is_dense = true;
 	
-	obstacle_pcl->width = int (obstacle_pcl->points.size ());
-	obstacle_pcl->height = 1;
-	obstacle_pcl->is_dense = true;
+		//cloud_outlier_removal(obstacle_pcl,obstacle_pcl);
 	
-	//cloud_outlier_removal(obstacle_pcl,obstacle_pcl);
-	
-	pcl::toROSMsg(*obstacle_pcl,output_cloud);
+		pcl::toROSMsg(*obstacle_pcl,output_cloud);
 	
     	output_cloud.header.frame_id = "laser";
     	output_cloud.header.stamp = ros::Time::now();	
     	
-	//ROS_INFO("Nummber of points in obstacle_cloud is:");
-	//std::cout << obstacle_pcl->points.size() << "\n";
+		//ROS_INFO("Nummber of points in obstacle_cloud is:");
+		//std::cout << obstacle_pcl->points.size() << "\n";
 	
-	obstcle_pub_.publish(output_cloud);
-	//ROS_WARN("Obstacle cloud published");
-	cloud_2D_projection(obstacle_pcl,obs_projected);
+		obstcle_pub_.publish(output_cloud);
+		//ROS_WARN("Obstacle cloud published");
+		cloud_2D_projection(obstacle_pcl,obs_projected);
 	
 	
-	pcl::toROSMsg(*obs_projected,cloud_obstacle_projected);
+		pcl::toROSMsg(*obs_projected,cloud_obstacle_projected);
     	cloud_obstacle_projected.header.frame_id = "laser";
     	cloud_obstacle_projected.header.stamp = ros::Time::now();		
-	obstcle_proj_pub_.publish(cloud_obstacle_projected);
+		obstcle_proj_pub_.publish(cloud_obstacle_projected);
 	
-	//compute_repulsive_force(obs_projected);
-	
-	
-	cloud_to_costmap(obstacle_pcl);
-	costmap_to_cloud();
+		//compute_repulsive_force(obs_projected);
 	
 	
-	repuslive_force_pub_.publish(repulsive_force);
-	repulsive_force.x = 0.0;
-	repulsive_force.y = 0.0;
-	repulsive_force.z = 0.0;
-	//debug
+		cloud_to_costmap(obstacle_pcl);
+		costmap_to_cloud();
+	
+	
+		repuslive_force_pub_.publish(repulsive_force);
+		repulsive_force.x = 0.0;
+		repulsive_force.y = 0.0;
+		repulsive_force.z = 0.0;
 
-	
-	
-	//debug end
 	
 	}
 	
 	void cloud_2D_projection(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out)
 	{
 	
-	// Create a set of planar coefficients with X=Y=0,Z=1
-	pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-	coefficients->values.resize (4);
-	coefficients->values[0] = coefficients->values[1] = 0;
-	coefficients->values[2] = 1.0;
-	coefficients->values[3] = 0;
+		// Create a set of planar coefficients with X=Y=0,Z=1
+		pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+		coefficients->values.resize (4);
+		coefficients->values[0] = coefficients->values[1] = 0;
+		coefficients->values[2] = 1.0;
+		coefficients->values[3] = 0;
 
-	// Create the filtering object
-	pcl::ProjectInliers<pcl::PointXYZ> proj;
-	proj.setModelType (pcl::SACMODEL_PLANE);
-	proj.setInputCloud (cloud_in);
-	proj.setModelCoefficients (coefficients);
-	proj.filter (*cloud_out);
+		// Create the filtering object
+		pcl::ProjectInliers<pcl::PointXYZ> proj;
+		proj.setModelType (pcl::SACMODEL_PLANE);
+		proj.setInputCloud (cloud_in);
+		proj.setModelCoefficients (coefficients);
+		proj.filter (*cloud_out);
 		
 	}
 	
@@ -374,55 +370,55 @@ class ObstacleDetectorClass
 	void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_2d)
 	{
 	
-	int mx;
-	int my;
+		int mx;
+		int my;
 
     	master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
     
-	for (size_t i = 0; i < obs_2d->points.size (); ++i)
-	{
+		for (size_t i = 0; i < obs_2d->points.size (); ++i)
+		{
 	    	//if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
 	    	
-		master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
-		master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
-		if( !is_on_costmap_margin(mx,my) )
-			master_grid_->setCost(mx,my, LETHAL_OBSTACLE);	
+			master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
+			master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+			if( !is_on_costmap_margin(mx,my) )
+				master_grid_->setCost(mx,my, LETHAL_OBSTACLE);	
 	
-	}  
+		}  
 	
-	lethal_inflation();	
-  	// Costmap2DPublisher
-  	master_grid_ros->publishCostmap();
+		lethal_inflation();	
+  		// Costmap2DPublisher
+  		master_grid_ros->publishCostmap();
   	
 	}
 	
 	void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZI> obs_2d)
 	{
 	
-	int mx;
-	int my;
+		int mx;
+		int my;
 
     	master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
     	unsigned char cost;
-	for (size_t i = 0; i < obs_2d.points.size (); ++i)
-	{
+		for (size_t i = 0; i < obs_2d.points.size (); ++i)
+		{
 			
-		master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
-		master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+			master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
+			master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
 	
-		if (obs_2d.points[i].intensity == 200) cost = INFLATED_OBSTACLE;
-		else cost = LETHAL_OBSTACLE;
-		if( !is_on_costmap_margin(mx,my) )
+			if (obs_2d.points[i].intensity == 200) cost = INFLATED_OBSTACLE;
+			else cost = LETHAL_OBSTACLE;
+			if( !is_on_costmap_margin(mx,my) )
 			master_grid_->setCost(mx,my, cost);
 	    		
 	
 	
-	} 
+		} 
 	
 	
-  	// Costmap2DPublisher
+  		// Costmap2DPublisher
   	
-  	master_grid_ros->publishCostmap();
+  		master_grid_ros->publishCostmap();
   	
 	}
 	
@@ -532,11 +528,11 @@ class ObstacleDetectorClass
 	
 	void costmap_to_cloud()
 	{
-	double temp_x;
-	double temp_y;
-	cost_map_cloud.clear();
-	for (size_t i=0; i < cell_x + 1; i++)
-	  {
+	  double temp_x;
+	  double temp_y;
+	  cost_map_cloud.clear();
+	  for (size_t i=0; i < cell_x + 1; i++)
+	    {
 		for (size_t j=0; j < cell_y + 1; j++)
 		{
 			unsigned char cost = master_grid_->getCost(i,j);
@@ -573,7 +569,7 @@ class ObstacleDetectorClass
 
 	void ElevationCallback(const nav_msgs::OccupancyGrid::ConstPtr& new_map)
 	{
-	//ROS_INFO("received!");
+	  //ROS_INFO("received!");
 		
 		unsigned int size_x = new_map->info.width, size_y = new_map->info.height;
 	
@@ -608,25 +604,71 @@ class ObstacleDetectorClass
 		testcallback();  /// <<-- Test
 		
 	}
-	/*
-	void test_lookuptable();
+	
+	void test_lookuptable()
 	{
+		int sample_L = 13; 
+		double Ts_L = 3.00;
+		int path_number;
+		PointCloudVar PC;
+		ros::NodeHandle n_pr("~");
+		sensor_msgs::PointCloud2 PC_msg;
 		MatrixXf tra;
-		tra.setZero( 3, 13);
-  		VectorXf V_in;
-  		VectorXf Omega_in;
-		RoverPathClass Rov(0.0, 13,master_grid_);
-		//	    01    02    03    04    05    06    07    08    09    10    11    12    13
-		V_in <<      1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1;
-		Omega_in<<   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0;
-		tra = Rov.Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
+		tra.setZero( 3, sample_L);
+  		VectorXf V_in(sample_L);
+  		VectorXf Omega_in(sample_L);
+		Vector3f x_0,x_dot_0,x_dot_f;
 		
-		
-		
+		x_0 << 0.0,0.0,0.0;
+		x_dot_0 << 0.0,0.0,0.0;
+		RoverPathClass Rov(0.0, sample_L,master_grid_);
+		std::vector<double> v_vector;
+		std::vector<double> o_vector;
+		n_pr.getParam("V_1", v_vector);
+		n_pr.getParam("path_number", path_number);
+		//ROS_INFO("1");
+		V_in = FromSTDvector(v_vector);
+		std::ostringstream j_no;
+		std::string temp;
+		for(int j=0;j < path_number;j++)
+		{
+			j_no.str("");
+			j_no.clear();
+			j_no << j;
+			temp = "O_" + j_no.str();
+			//ROS_WARN("String is %s", temp);
+			//std::cout << temp << "\n";
 			
-		//simulating the trajectory
-		tra = Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
-	}*/
+			n_pr.getParam("O_"+j_no.str(), o_vector);
+			
+			Omega_in = FromSTDvector(o_vector);
+			tra = Rov.Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);		
+			PointXYZ point;
+			for(size_t i=0; i<tra.cols();i++)
+			{
+				point.x = tra(0,i);
+				point.y = tra(1,i);
+				point.z = 0.0;
+				PC.push_back(point);
+			
+			}
+		}
+		pcl::toROSMsg(PC,PC_msg);
+		PC_msg.header.stamp = ros::Time::now();
+		PC_msg.header.frame_id = "base_link";
+		lookuppath_pub_.publish(PC_msg);				
+		
+	}
+
+	VectorXf FromSTDvector(std::vector<double> input)
+	{
+		VectorXf out((int)input.size());
+		for (size_t i = 0; i < input.size(); i++)
+		{
+			out(i) = input[i];	
+		}
+		return out;
+	}
 
 	void testcallback()
 	{
@@ -814,18 +856,18 @@ class ObstacleDetectorClass
   		
 	PATH_COST Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* grid)
 	{
-	CELL prev_cell;
-	CELL curr_cell;
-	prev_cell.x = 0;
-	prev_cell.y = 0;
-	PATH_COST cost;
-	cost.Lethal_cost = 0.0;
-	cost.Travel_cost = Travel_cost_inc;
-	cost.Inf_cost = 0.0;
-	cost.collision = false;
+	  CELL prev_cell;
+	  CELL curr_cell;
+	  prev_cell.x = 0;
+	  prev_cell.y = 0;
+	  PATH_COST cost;
+	  cost.Lethal_cost = 0.0;
+	  cost.Travel_cost = Travel_cost_inc;
+	  cost.Inf_cost = 0.0;
+	  cost.collision = false;
 	
-	for(size_t i=0; i < path.cols(); i++)
-	{
+	  for(size_t i=0; i < path.cols(); i++)
+	  {
 		unsigned int mx;
 		unsigned int my;
 		grid->worldToMap((double) path(0,i),(double) path(1,i),curr_cell.x,curr_cell.y);
@@ -848,8 +890,8 @@ class ObstacleDetectorClass
 			cost.Travel_cost +=  Travel_cost_inc;
 			prev_cell = curr_cell;
 		}
-	}
-	return cost;
+	  }
+	  return cost;
 	}
 
 	void run()
@@ -1000,7 +1042,7 @@ class ObstacleDetectorClass
 				first_loop = false;
 					
 			}
-		
+		    test_lookuptable();
 			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
     			costmap_cl.header.frame_id = "base_link";
@@ -1045,6 +1087,7 @@ class ObstacleDetectorClass
 		ros::Publisher path_solution_pub_;
 		ros::Publisher path_trace_pub_;
 		ros::Publisher path_colision_pub_;
+		ros::Publisher lookuppath_pub_;
 		
 		geometry_msgs::Vector3 repulsive_force;
 		
@@ -1077,11 +1120,11 @@ class ObstacleDetectorClass
 		costmap_2d::Costmap2DPublisher* master_grid_ros;
 		costmap_2d::Costmap2DPublisher* elevation_grid_ros;
 		// Elevation costmap params
-    		double elevation_resolution_xy;
-    		double elevation_origin_x;
-    		double elevation_origin_y;
-    		double elevation_costmap_x_size;
-    		double elevation_costmap_y_size;
+    	double elevation_resolution_xy;
+    	double elevation_origin_x;
+    	double elevation_origin_y;
+    	double elevation_costmap_x_size;
+    	double elevation_costmap_y_size;
 		unsigned int elevation_cell_x;
 		unsigned int elevation_cell_y;
 		
