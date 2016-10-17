@@ -134,8 +134,8 @@ class ObstacleDetectorClass
 			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
 			path_solution_pub_    = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
 			path_colision_pub_    = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
-			lookuppath_pub_		  =  n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
-    			
+			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
+    		ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
     			// Range image params
     			
 			support_size = 0.4f;
@@ -653,6 +653,12 @@ class ObstacleDetectorClass
 			
 			}
 		}
+		geometry_msgs::PoseArray Poses_msg;
+		VectorXf Poses;
+		Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg);
+		ChassisPose_pub_.publish(Poses_msg);
+
+
 		pcl::toROSMsg(PC,PC_msg);
 		PC_msg.header.stamp = ros::Time::now();
 		PC_msg.header.frame_id = "base_link";
@@ -1088,7 +1094,8 @@ class ObstacleDetectorClass
 		ros::Publisher path_trace_pub_;
 		ros::Publisher path_colision_pub_;
 		ros::Publisher lookuppath_pub_;
-		
+		ros::Publisher ChassisPose_pub_;
+
 		geometry_msgs::Vector3 repulsive_force;
 		
 		//Class Global Variables

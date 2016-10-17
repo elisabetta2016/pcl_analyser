@@ -6,12 +6,20 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+//TF
+#include <tf/transform_datatypes.h>
+
+//Messages
+#include <geometry_msgs/PoseArray.h>
+
 // Eigen
 #include <Eigen/Dense> 
 
 // Costmap_2d
 #include <costmap_2d/layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
+
+
 using namespace Eigen;
 
 struct PATH_COST{
@@ -47,6 +55,8 @@ class RoverPathClass
 	void update_costmap(costmap_2d::Costmap2D* grid_);
 	
 	void traj_to_cloud(MatrixXf tra);
+
+	void Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg);
 
 	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
 

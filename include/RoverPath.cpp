@@ -174,6 +174,57 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
+void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg)
+{
+	int vector_size = Path.cols();
+	VectorXf temp_output (vector_size);
+    //geometry_msgs::PoseArray msg;
+	geometry_msgs::Pose temp_pose;
+	CELL FRT_cell;
+	CELL FLT_cell;
+	bool unknownCell = false;
+    const float RoverWidth = 396.5;
+	float delta_e = 0.0;
+	MatrixXf FrontRightTrack; 
+	MatrixXf FrontLeftTrack;
+	MatrixXf RearRightTrack;
+	MatrixXf RearLeftTrack;
+	MatrixXf Arm;
+	
+	Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
+
+	msg.poses = std::vector <geometry_msgs::Pose> (vector_size);
+	for (size_t i=0;i < vector_size;i++)
+	{
+		grid->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
+		grid->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i),FLT_cell.x,FLT_cell.y);
+		FRT_cell.c = grid->getCost(FRT_cell.x,FRT_cell.y);
+		FLT_cell.c = grid->getCost(FLT_cell.x,FLT_cell.y);
+		if (FRT_cell.c == 255 || FLT_cell.c == 255)
+		{
+			unknownCell = true;
+		}
+		
+		delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+		temp_output(i) = asin(delta_e/RoverWidth);
+		if (unknownCell)
+		{
+			if(i==1) temp_output(i) = 0.0;
+			else temp_output(i) = temp_output(i-1);
+			unknownCell = false;
+		}
+		temp_pose.position.x = Path(0,i);
+		temp_pose.position.y = Path(1,i);
+		temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2;
+		temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (temp_output(i), 0.0, Path(2,i));
+		msg.poses[i] = temp_pose;
+	}
+	Poses = temp_output;
+	msg.header.stamp = ros::Time::now();
+	msg.header.frame_id = "base_link";
+	
+}
+
 void RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm)
 {
 
@@ -187,7 +238,7 @@ void RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack,
     RearLeftTrack.setZero(3,length);
     Arm.setZero(3,length);
 
-//ROS_WARN_STREAM("trajectory is " << trajectory);
+
     
 
     FRT_vector <<  0.265,-0.3965,1.0;
