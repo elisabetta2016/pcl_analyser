@@ -17,6 +17,18 @@ RoverPathClass::RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* gri
 	Lethal_cost_inc = 10.0;
 	Inf_cost_inc = 3.0;
 }
+RoverPathClass::RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* obs_grid_, costmap_2d::Costmap2D* e_grid_)
+{
+	Rover_b = b_;
+	sample = sample_;
+	master_grid_ = obs_grid_;
+	elevation_grid_ = e_grid_;
+
+	set_pso_params_default();
+	Travel_cost_inc = 0.0;
+	Lethal_cost_inc = 10.0;
+	Inf_cost_inc = 3.0;
+}
 /*
 RoverPathClass::~RoverPathClass()	
 {
@@ -84,6 +96,7 @@ PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* gri
 		if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
 		{
 			curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
+			//ROS_ERROR("curr_cell 1:%f 2:%f 3:%d 4:%d",path(0,i),path(1,i),curr_cell.x,curr_cell.y);
 			if (curr_cell.c == LETHAL_OBSTACLE)
 			{
 				cost.Lethal_cost += Lethal_cost_inc;
@@ -174,7 +187,7 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
-void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg)
+void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg)
 {
 	int vector_size = Path.cols();
 	VectorXf temp_output (vector_size);
@@ -190,16 +203,22 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* gri
 	MatrixXf RearRightTrack;
 	MatrixXf RearLeftTrack;
 	MatrixXf Arm;
-	
+	int mx,my;
 	Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
-
+	ROS_INFO("1");
 	msg.poses = std::vector <geometry_msgs::Pose> (vector_size);
 	for (size_t i=0;i < vector_size;i++)
 	{
-		grid->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
-		grid->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i),FLT_cell.x,FLT_cell.y);
-		FRT_cell.c = grid->getCost(FRT_cell.x,FRT_cell.y);
-		FLT_cell.c = grid->getCost(FLT_cell.x,FLT_cell.y);
+		ROS_WARN("1");
+		e_grid->worldToMapEnforceBounds((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), mx, my); //not good
+		FRT_cell.x = mx;
+		FRT_cell.y = my;
+		e_grid->worldToMapEnforceBounds((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), mx, my);  //not good
+		FLT_cell.x = mx;
+		FLT_cell.y = my;
+		ROS_WARN("FRT 1:%f 2:%f 3:%d 4:%d",FrontRightTrack(0,i),FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
+		FRT_cell.c = e_grid->getCost(FRT_cell.x,FRT_cell.y);
+		FLT_cell.c = e_grid->getCost(FLT_cell.x,FLT_cell.y);
 		if (FRT_cell.c == 255 || FLT_cell.c == 255)
 		{
 			unknownCell = true;

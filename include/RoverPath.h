@@ -45,7 +45,7 @@ class RoverPathClass
 	public:
 		
 	RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* grid_);
-	
+	RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* obs_grid_, costmap_2d::Costmap2D* e_grid_);
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
 	void set_pso_params(double pso_inertia_in,double c_1_in,double c_2_in,double Goal_gain_in,double Cost_gain_in,double Speed_gain_in,int particle_no_,int iteration_);
@@ -72,6 +72,7 @@ class RoverPathClass
 	protected:
 	
 	costmap_2d::Costmap2D* master_grid_;
+	costmap_2d::Costmap2D* elevation_grid_;
 	//RoverSim params
 	double Rover_b;
 	int sample;

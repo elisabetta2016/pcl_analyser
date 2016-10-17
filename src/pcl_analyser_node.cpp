@@ -607,6 +607,7 @@ class ObstacleDetectorClass
 	
 	void test_lookuptable()
 	{
+		if(first_elevation_received) return;
 		int sample_L = 13; 
 		double Ts_L = 3.00;
 		int path_number;
@@ -621,7 +622,7 @@ class ObstacleDetectorClass
 		
 		x_0 << 0.0,0.0,0.0;
 		x_dot_0 << 0.0,0.0,0.0;
-		RoverPathClass Rov(0.0, sample_L,master_grid_);
+		RoverPathClass Rov(0.0, sample_L,master_grid_,elevation_grid_);
 		std::vector<double> v_vector;
 		std::vector<double> o_vector;
 		n_pr.getParam("V_1", v_vector);
@@ -655,9 +656,11 @@ class ObstacleDetectorClass
 		}
 		geometry_msgs::PoseArray Poses_msg;
 		VectorXf Poses;
-		Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg);
-		ChassisPose_pub_.publish(Poses_msg);
-
+		if(!first_elevation_received) //!first_elevation_received
+		{
+			Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg);
+			ChassisPose_pub_.publish(Poses_msg);
+		}
 
 		pcl::toROSMsg(PC,PC_msg);
 		PC_msg.header.stamp = ros::Time::now();
