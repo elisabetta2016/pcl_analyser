@@ -19,6 +19,7 @@
 #include <costmap_2d/layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
 
+#include<hector_elevation_visualization/EcostmapMetaData.h>
 
 using namespace Eigen;
 
@@ -33,11 +34,21 @@ struct CELL{
 	unsigned int y;
 	unsigned char c;
 };
+
+struct c_map{
+	float x_size;
+	float y_size;
+	float orig_x;
+	float orig_y;
+	float resolution;
+	std::vector<std::vector<int16_t>> mat; 
+};
+
 //define global variables
-extern double omega_x;
-extern double laser_dist;
-extern bool demo_;
-extern double b;
+ extern double omega_x;
+ extern double laser_dist;
+ extern bool demo_;
+ extern double b;
 
 
 class RoverPathClass
@@ -56,7 +67,7 @@ class RoverPathClass
 	
 	void traj_to_cloud(MatrixXf tra);
 
-	void Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg);
+	void Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
 	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
 
@@ -92,6 +103,9 @@ class RoverPathClass
 	double Lethal_cost_inc;
 	double Inf_cost_inc;
   	float path_z_inc;
-  	
+
+	private:
+	bool is_in_costmap(float x, float y, costmap_2d::Costmap2D* grid);
+	void worldtomap(float wx, float wy, c_map costmap,unsigned int& mx, unsigned int& my)  	
 };
 #endif 

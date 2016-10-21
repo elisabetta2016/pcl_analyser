@@ -1,71 +1,71 @@
-#include <ros/ros.h>
-#include <ros/timer.h>
-#include <math.h>
-#include <iostream>
-#include <string>
+//#includes 
+ //Standard
+  #include <ros/ros.h>
+  #include <ros/timer.h>
+  #include <math.h>
+  #include <iostream>
+  #include <string>
 
-// PCL specific includes
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
+ // PCL specific includes
+ #include <pcl_conversions/pcl_conversions.h>
+ #include <pcl/point_cloud.h>
+ #include <pcl/point_types.h>
 
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/feature.h>
-#include <pcl/keypoints/sift_keypoint.h>
-#include <pcl/common/projection_matrix.h>
-#include <pcl/features/pfhrgb.h>
-#include <pcl/filters/filter.h> 
+ #include <pcl/filters/voxel_grid.h>
+ #include <pcl/io/pcd_io.h>
+ #include <pcl/point_types.h>
+ #include <pcl/features/normal_3d.h>
+ #include <pcl/features/feature.h>
+ #include <pcl/keypoints/sift_keypoint.h>
+ #include <pcl/common/projection_matrix.h>
+ #include <pcl/features/pfhrgb.h>
+ #include <pcl/filters/filter.h> 
 
-#include <pcl/PCLPointCloud2.h>
-#include <pcl/conversions.h>
-#include <pcl_ros/transforms.h>
-#include <pcl/filters/conditional_removal.h>
-#include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/filters/project_inliers.h>
+ #include <pcl/PCLPointCloud2.h>
+ #include <pcl/conversions.h>
+ #include <pcl_ros/transforms.h>
+ #include <pcl/filters/conditional_removal.h>
+ #include <pcl/filters/statistical_outlier_removal.h>
+ #include <pcl/ModelCoefficients.h>
+ #include <pcl/filters/project_inliers.h>
 
-// Messages
-#include <sensor_msgs/PointCloud2.h>
-#include "donkey_rover/Rover_Scanner.h"
-#include "donkey_rover/Rover_Track_Speed.h"
-#include <geometry_msgs/Vector3.h>
-#include <nav_msgs/Path.h>
-#include <sensor_msgs/point_cloud_conversion.h>
-
-
-
-#include <pcl/keypoints/iss_3d.h>
-#include <pcl/common/transforms.h>
-//Costmap
-#include <costmap_2d/static_layer.h>
-#include <costmap_2d/layer.h>
-#include <costmap_2d/costmap_2d_ros.h>
-#include <costmap_2d/costmap_2d_publisher.h>
-#include <list>
-// TF
-#include <tf/transform_listener.h>
-#include <Eigen/Dense> 
-
-#define INFLATED_OBSTACLE 200
-#define WIDTH 255 //default
+ // Messages
+  #include <sensor_msgs/PointCloud2.h>
+  #include "donkey_rover/Rover_Scanner.h"
+  #include "donkey_rover/Rover_Track_Speed.h"
+  #include <geometry_msgs/Vector3.h>
+  #include <nav_msgs/Path.h>
+  #include <sensor_msgs/point_cloud_conversion.h>
 
 
-#include "RoverPath.h" 
-#include <vector>
 
-using std::vector;
-typedef pcl::PointXYZ PointXYZ;
-typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
-typedef pcl::PointCloud<pcl::PointXYZ> PointCloudVar;
+ #include <pcl/keypoints/iss_3d.h>
+ #include <pcl/common/transforms.h>
+ //Costmap
+ #include <costmap_2d/static_layer.h>
+ #include <costmap_2d/layer.h>
+ #include <costmap_2d/costmap_2d_ros.h>
+ #include <costmap_2d/costmap_2d_publisher.h>
+ #include <list>
+ // TF
+ #include <tf/transform_listener.h>
+ #include <Eigen/Dense> 
 
-using namespace Eigen;
+ #include "RoverPath.h" 
+ #include <vector>
 
+//#defs
+ #define INFLATED_OBSTACLE 200
+ #define WIDTH 255 //default
 
-using costmap_2d::LETHAL_OBSTACLE;
-
+//typedefs
+  typedef pcl::PointXYZ PointXYZ;
+  typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
+  typedef pcl::PointCloud<pcl::PointXYZ> PointCloudVar;
+//Name Spaces
+ using std::vector;
+ using namespace Eigen;
+ using costmap_2d::LETHAL_OBSTACLE;
 
 /*struct PATH_COST{
 	float Lethal_cost;
@@ -84,29 +84,28 @@ struct PointIndex {
 	int j;
 };
 
-double laser_dist = 0.493;  // distance between laser and center of gravity
+//Global Variables
+ double laser_dist = 0.493;  // distance between laser and center of gravity
+ double lethal_rad = 0.1;
+ double inf_rad = 0.3;
+ double Travel_cost_inc = 0.0;
+ double Lethal_cost_inc = 10.0;
+ double Inf_cost_inc = 8.0;
+ double b = 0.8;
+ int sample = 15;
+ bool demo_;
+ bool pso_analyse = false;
+ double pso_inertia;
+ double c_1;
+ double c_2;
+ double Goal_gain;
+ double Cost_gain;
+ double Speed_gain;
+ double omega_x;
+ double Dist_passed_threshold = 0.8;
+ int path_piece = 1;
+ double Watching_hor = 3.0; //Default value
 
-double lethal_rad = 0.1;
-double inf_rad = 0.3;
-double Travel_cost_inc = 0.0;
-double Lethal_cost_inc = 10.0;
-double Inf_cost_inc = 8.0;
-double b = 0.8;
-int sample = 15;
-bool demo_;
-
-bool pso_analyse = false;
-double pso_inertia;
-double c_1;
-double c_2;
-double Goal_gain;
-double Cost_gain;
-double Speed_gain;
-double omega_x;
-double Dist_passed_threshold = 0.8;
-int path_piece = 1;
-
-double Watching_hor = 3.0; //Default value
 
 class ObstacleDetectorClass
 {
@@ -123,7 +122,7 @@ class ObstacleDetectorClass
 			subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
 			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
 			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
-			
+			subFromElevationCostmapMeta_ = n_.subscribe("/elevation_costmap_MetaData", 1, &ObstacleDetectorClass::EleMetaCallback,this);
 			// publishers
 			obstcle_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
@@ -566,7 +565,10 @@ class ObstacleDetectorClass
 		nav_goal(0,2) = 0.0; 
 		goal_present = true; 
 	}
-
+    void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg)
+	{
+		ecostmap_meta = *msg;
+	}
 	void ElevationCallback(const nav_msgs::OccupancyGrid::ConstPtr& new_map)
 	{
 	  //ROS_INFO("received!");
@@ -585,6 +587,8 @@ class ObstacleDetectorClass
 		unsigned int index = 0;
 		uint8_t temp;
 		int value;
+		elevation_grid_->resetMap(0,0,size_x-1,size_y-1);
+
 		for (unsigned int i = 0; i < size_y; ++i)
  		{
 			for (unsigned int j = 0; j < size_x; ++j)
@@ -594,6 +598,7 @@ class ObstacleDetectorClass
 				if(temp == 255) value = 255;
 				else value = floor(254*temp/100);
 				//ROS_INFO("temp is %d    value is %d", temp, value);
+				
 				elevation_grid_ros->updateBounds(0,size_x,0,size_y-1);
 				elevation_grid_->setCost(j,i,(unsigned char) value);
 				++index;
@@ -658,7 +663,7 @@ class ObstacleDetectorClass
 		VectorXf Poses;
 		if(!first_elevation_received) //!first_elevation_received
 		{
-			Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg);
+			Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg,ecostmap_meta);
 			ChassisPose_pub_.publish(Poses_msg);
 		}
 
@@ -1085,7 +1090,7 @@ class ObstacleDetectorClass
 		ros::Subscriber subFromTrackSpeed_;
 		ros::Subscriber subFromGoal_;
 		ros::Subscriber subFromElevationCostmap_;
-		
+		ros::Subscriber subFromElevationCostmapMeta_;
 		
 		// Publishers
 		ros::Publisher obstcle_pub_;
@@ -1147,7 +1152,7 @@ class ObstacleDetectorClass
 		Vector3f nav_goal;
 		bool goal_present;
 		
-		
+		hector_elevation_visualization::EcostmapMetaData ecostmap_meta;
 		//Path finder
 		pcl::PointCloud<pcl::PointXYZ> path_trace_pcl;
 		float path_z_inc;

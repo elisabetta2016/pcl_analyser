@@ -187,7 +187,7 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
-void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg)
+void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
 {
 	int vector_size = Path.cols();
 	VectorXf temp_output (vector_size);
@@ -196,7 +196,7 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_g
 	CELL FRT_cell;
 	CELL FLT_cell;
 	bool unknownCell = false;
-    const float RoverWidth = 396.5;
+    const float RoverWidth = 0.3965;
 	float delta_e = 0.0;
 	MatrixXf FrontRightTrack; 
 	MatrixXf FrontLeftTrack;
@@ -205,26 +205,50 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_g
 	MatrixXf Arm;
 	int mx,my;
 	Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
-	ROS_INFO("1");
+	
 	msg.poses = std::vector <geometry_msgs::Pose> (vector_size);
 	for (size_t i=0;i < vector_size;i++)
 	{
-		ROS_WARN("1");
-		e_grid->worldToMapEnforceBounds((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), mx, my); //not good
-		FRT_cell.x = mx;
-		FRT_cell.y = my;
-		e_grid->worldToMapEnforceBounds((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), mx, my);  //not good
-		FLT_cell.x = mx;
-		FLT_cell.y = my;
-		ROS_WARN("FRT 1:%f 2:%f 3:%d 4:%d",FrontRightTrack(0,i),FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
+		//e_grid->worldToMapEnforceBounds((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), mx, my); //not good
+		if(is_in_costmap(FrontRightTrack(0,i),FrontRightTrack(1,i),e_grid) &&
+		   is_in_costmap(FrontLeftTrack(0,i),FrontLeftTrack(1,i),e_grid))
+		   {
+			    //ROS_WARN("1");
+				e_grid->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), FRT_cell.x, FRT_cell.y);
+				//ROS_WARN("2");
+				e_grid->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), FLT_cell.x, FLT_cell.y);  
+				//ROS_WARN_STREAM("FRT \n" << FrontRightTrack << "FrontLeftTrack" << FrontLeftTrack );
+		   }
+		else
+		{   // The point is not in the costmap 
+		    ROS_ERROR_STREAM("FRT \n" << FrontRightTrack << "FrontLeftTrack" << FrontLeftTrack );
+			temp_pose.position.x = Path(0,i);
+			temp_pose.position.y = Path(1,i);
+			temp_pose.position.z = 0.0;
+			temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (0.0, 0.0, Path(2,i));
+			msg.poses[i] = temp_pose;
+
+			temp_output(i) = 0.0;
+			continue;
+		}   
+		//ROS_WARN("FRT 1:%f 2:%f 3:%d 4:%d",FrontRightTrack(0,i),FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
 		FRT_cell.c = e_grid->getCost(FRT_cell.x,FRT_cell.y);
 		FLT_cell.c = e_grid->getCost(FLT_cell.x,FLT_cell.y);
+
+		delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
 		if (FRT_cell.c == 255 || FLT_cell.c == 255)
 		{
 			unknownCell = true;
 		}
+		/*
+		else
+		{
+			ROS_ERROR("FrontRightTrack x:%f, y:%f   FrontLeftTrack x:%f, y:%f ",FrontRightTrack(0,i),FrontRightTrack(1,i),FrontLeftTrack(0,i),FrontLeftTrack(1,i));
+			ROS_INFO("FRT_CELL  1:%d, 2:%d    FLT_cell:   1:%d, 2:%d ",FRT_cell.x,FRT_cell.y,FLT_cell.x,FLT_cell.y);
+			ROS_WARN_STREAM("FRT_cell.c:   " << FRT_cell.c << "FLT_cell.c:   " <<FLT_cell.c << "delta_e:   "<<delta_e);
+		}*/
 		
-		delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+		
 		temp_output(i) = asin(delta_e/RoverWidth);
 		if (unknownCell)
 		{
@@ -234,11 +258,12 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_g
 		}
 		temp_pose.position.x = Path(0,i);
 		temp_pose.position.y = Path(1,i);
-		temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2;
+		temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
 		temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (temp_output(i), 0.0, Path(2,i));
 		msg.poses[i] = temp_pose;
 	}
 	Poses = temp_output;
+	//ROS_WARN_STREAM(temp_output);
 	msg.header.stamp = ros::Time::now();
 	msg.header.frame_id = "base_link";
 	
@@ -370,7 +395,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	
 	
 	
-	ROS_INFO_STREAM("V_curr_c is -------->  "  << V_curr_c);
+	//ROS_INFO_STREAM("V_curr_c is -------->  "  << V_curr_c);
 
 	float rand_v;
 	float rand_w;
@@ -511,4 +536,20 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	ROS_INFO_STREAM("best particle" << "\n" << G);
 	return output_tra;
     
+}
+//Private member functions
+bool RoverPathClass::is_in_costmap(float x, float y, costmap_2d::Costmap2D* grid)
+{
+	bool output = false;
+	//ROS_ERROR("1");
+	float x_origin = grid->getOriginX();
+	float x_size = grid->getSizeInMetersX();
+	float y_size = grid->getSizeInMetersY();
+	
+	if( x > x_origin && x < (x_size + x_origin) && fabs(y) < y_size )
+	{
+		output = true;
+		//ROS_INFO("%f > %f && %f < %f && %f < %f ", x, x_origin, x, x_size+x_origin,fabs(y), y_size);
+	}
+	return output;
 }
