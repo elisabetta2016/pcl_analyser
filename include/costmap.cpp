@@ -1,8 +1,7 @@
-#ifndef ROVERPATH_H
 #include "costmap.h"
-#include <nav_msgs/OccupancyGrid.h>
 
-costmap:costmap(double x_orig_,double y_orig_,float x_size_,float y_size_,float resolution_,std::string frame_id_)
+
+costmap::costmap(double x_orig_,double y_orig_,float x_size_,float y_size_,float resolution_,std::string frame_id_)
 {
     default_cost = -1; //unknown cell
     float resolution = resolution_;
@@ -12,7 +11,7 @@ costmap:costmap(double x_orig_,double y_orig_,float x_size_,float y_size_,float 
     y_size = y_size_;
     cell_x_size = x_size/resolution;
     cell_y_size = y_size/resolution;
-    mat.resize(cell_x_size, std::vector<int8_t>(cell_y_size, default_cost));
+    mat.resize(cell_x_size, std::vector<signed char> (cell_y_size, default_cost));
     frame_id = frame_id_;
 }
 
@@ -57,10 +56,10 @@ void costmap::maptoworld(unsigned int mx, unsigned int my, double& wx, double& w
     wy = y_orig + (my + 0.5) * resolution;
 }
 
-int8_t getcost(unsigned int mx,unsigned int my)
+signed char costmap::getcost(unsigned int mx,unsigned int my)
 {
     
-    int8_t cost;
+    signed char cost;
     if(mx < cell_x_size && my < cell_y_size)
        cost = mat[mx][my];
     else
@@ -70,9 +69,9 @@ int8_t getcost(unsigned int mx,unsigned int my)
     }
     return cost;
 }
-int8_t costmap::getcost_WC(float wx,float wy) //cost from world coordinates
+signed char costmap::getcost_WC(float wx,float wy) //cost from world coordinates
 {
-    int8_t cost;
+    signed char cost;
     unsigned int mx,my;
     if(!worldtomap(wx,wy,mx,my))
     {
@@ -96,19 +95,34 @@ nav_msgs::OccupancyGrid costmap::getROSmsg()
     msg.info.origin.orientation.y = 0.0;
     msg.info.origin.orientation.z = 0.0;
     msg.info.origin.orientation.w = 1.0;
-    msg.data = mat;
+    msg.data = MatrixToVector(mat);
     return msg;
 }
-void costmap::setcost(unsigned int mx,unsigned int my,int8_t cost)
+void costmap::setcost(unsigned int mx,unsigned int my,signed char cost)
 {
     if(mx < cell_x_size && my < cell_y_size)
         mat[mx][my] = cost;
     else
         ROS_ERROR("Out of range cell request");
 }
-void costmap::setcost_WC(float wx,float wy, int8_t cost)
+void costmap::setcost_WC(float wx,float wy, signed char cost)
 {
      unsigned mx,my;
-     bool k = worldtomap(wx,wy,mx,my));
+     bool k = worldtomap(wx,wy,mx,my);
      setcost(mx,my,cost);
+}
+std::vector<signed char> costmap::MatrixToVector( std::vector< std::vector<signed char> > Matrix)
+{
+    int rows = Matrix.size();
+    int cols = Matrix[0].size();
+    std::vector<signed char> Vector = std::vector<signed char> (rows*cols);
+    for(int i = 0;i< rows; i++)
+    {
+        for(int j = 0; j< cols; j++)
+        {
+            Vector[j + i*cols ] = Matrix[i][j];
+        }
+    }
+    return Vector;
+
 }

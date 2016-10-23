@@ -125,8 +125,9 @@ include_directories(
 
 ## Declare a C++ library
 add_library(RoverPath
-   include/RoverPath.cpp
+   include/RoverPath.cpp include/costmap.cpp
 )
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -144,7 +145,7 @@ add_library(RoverPath
  add_dependencies(pcl_analyser_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(pcl_analyser_node RoverPath
+ target_link_libraries(pcl_analyser_node RoverPath 
    ${catkin_LIBRARIES}
  )
  

@@ -1,4 +1,15 @@
+#ifndef COSTMAP_H
+#define COSTMAP_H
+
 //#includes
+ //Standard
+  #include <ros/ros.h>
+  #include <ros/timer.h>
+  #include <math.h>
+  #include <iostream>
+  #include <string>
+ //Messages
+  #include <nav_msgs/OccupancyGrid.h>
 
 class costmap{
     public:
@@ -10,14 +21,14 @@ class costmap{
         void  get_costmap_size_in_cell(unsigned int& mx, unsigned int& my);
         bool  worldtomap (float wx, float wy,unsigned int& mx, unsigned int& my);
         void  maptoworld(unsigned int mx, unsigned int my, double& wx, double& wy);
-        int8_t getcost(unsigned int mx,unsigned int my);
-        int8_t getcost_WC(float wx,float wy); //cost from world coordinates
+        signed char getcost(unsigned int mx,unsigned int my);
+        signed char getcost_WC(float wx,float wy); //cost from world coordinates
         nav_msgs::OccupancyGrid getROSmsg();
 
-        void  setcost(unsigned int mx,unsigned int my,int8_t cost);
+        void  setcost(unsigned int mx,unsigned int my,signed char cost);
 
-        void setcost_WC(float wx,float wy, int8_t cost);
-
+        void setcost_WC(float wx,float wy, signed char cost);
+        
     protected:
         float resolution; // meters/cell
         float x_orig;
@@ -26,10 +37,11 @@ class costmap{
         float y_size;
         unsigned int cell_x_size;
         unsigned int cell_y_size;
-        std::vector<std::vector<int8_t>> mat;
+        std::vector< std::vector<signed char> > mat;
         std::string frame_id; 
 
     private:
-        int8_t default_cost;
+        signed char default_cost;
+        std::vector<signed char> MatrixToVector( std::vector< std::vector<signed char> > Matrix);
 };
 #endif

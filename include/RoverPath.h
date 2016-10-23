@@ -35,14 +35,7 @@ struct CELL{
 	unsigned char c;
 };
 
-struct c_map{
-	float x_size;
-	float y_size;
-	float orig_x;
-	float orig_y;
-	float resolution;
-	std::vector<std::vector<int16_t>> mat; 
-};
+
 
 //define global variables
  extern double omega_x;
@@ -106,6 +99,6 @@ class RoverPathClass
 
 	private:
 	bool is_in_costmap(float x, float y, costmap_2d::Costmap2D* grid);
-	void worldtomap(float wx, float wy, c_map costmap,unsigned int& mx, unsigned int& my)  	
+	
 };
 #endif 
