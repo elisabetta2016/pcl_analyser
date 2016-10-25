@@ -18,6 +18,7 @@
 // Costmap_2d
 #include <costmap_2d/layer.h>
 #include <costmap_2d/costmap_2d_ros.h>
+#include "costmap.h"
 
 #include<hector_elevation_visualization/EcostmapMetaData.h>
 
@@ -32,7 +33,7 @@ struct PATH_COST{
 struct CELL{
 	unsigned int x;
 	unsigned int y;
-	unsigned char c;
+	signed char c;
 };
 
 
@@ -48,19 +49,19 @@ class RoverPathClass
 {
 	public:
 		
-	RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* grid_);
-	RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* obs_grid_, costmap_2d::Costmap2D* e_grid_);
+	RoverPathClass(double b_,int sample_, costmap* grid_);
+	RoverPathClass(double b_,int sample_, costmap* obs_grid_, costmap* e_grid_);
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
 	void set_pso_params(double pso_inertia_in,double c_1_in,double c_2_in,double Goal_gain_in,double Cost_gain_in,double Speed_gain_in,int particle_no_,int iteration_);
 	
 	void set_pso_params_default();
 	
-	void update_costmap(costmap_2d::Costmap2D* grid_);
+	void update_costmap(costmap* grid_);
 	
 	void traj_to_cloud(MatrixXf tra);
 
-	void Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
+	void Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
 	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
 
@@ -68,15 +69,15 @@ class RoverPathClass
 	
 	pcl::PointCloud<pcl::PointXYZ> get_path_trace_cloud();
 	
-	PATH_COST Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* grid);
+	PATH_COST Cost_of_path(MatrixXf path, costmap* grid);
 	
 	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f);
 	
 	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found);
 	protected:
 	
-	costmap_2d::Costmap2D* master_grid_;
-	costmap_2d::Costmap2D* elevation_grid_;
+	costmap* master_grid_;
+	costmap* elevation_grid_;
 	//RoverSim params
 	double Rover_b;
 	int sample;
@@ -98,7 +99,7 @@ class RoverPathClass
   	float path_z_inc;
 
 	private:
-	bool is_in_costmap(float x, float y, costmap_2d::Costmap2D* grid);
+	bool is_in_costmap(float x, float y, costmap* grid);
 	
 };
 #endif 

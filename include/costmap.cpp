@@ -1,31 +1,36 @@
 #include "costmap.h"
 
 
-costmap::costmap(double x_orig_,double y_orig_,float x_size_,float y_size_,float resolution_,std::string frame_id_)
+costmap::costmap(double x_orig_,double y_orig_,unsigned int cell_x_size_,unsigned int cell_y_size_,float resolution_,std::string frame_id_,bool show_debug_)
 {
     default_cost = -1; //unknown cell
-    float resolution = resolution_;
+    resolution = resolution_;
     x_orig = x_orig_;
     y_orig = y_orig_;
-    x_size = x_size_;
-    y_size = y_size_;
-    cell_x_size = x_size/resolution;
-    cell_y_size = y_size/resolution;
+    x_size = cell_x_size*resolution;
+    y_size = cell_y_size*resolution;
+    cell_x_size = cell_x_size_;
+    cell_y_size = cell_y_size_;
+    //ROS_INFO("cell_x_size: %d   and    cell_y_size:   %d   ",cell_x_size,cell_y_size);
     mat.resize(cell_x_size, std::vector<signed char> (cell_y_size, default_cost));
     frame_id = frame_id_;
+    show_debug = show_debug_;
+    if (show_debug_) ROS_INFO("costmap prints debug msgs");
 }
 
-float costmap::get_x_origin()
+
+
+float costmap::getOriginX()
 {
     float out = x_orig;
     return out;
 }
-float costmap::get_y_origin()
+float costmap::getOriginY()
 {
     float out = y_orig;
     return out;
 }
-float costmap::get_resolution()
+float costmap::getResolution()
 {
     float out = resolution;
     return out;
@@ -41,7 +46,7 @@ void costmap::get_costmap_size_in_cell(unsigned int& mx, unsigned int& my)
     my = cell_y_size;
 }
 
-bool costmap::worldtomap (float wx, float wy,unsigned int& mx, unsigned int& my)
+bool costmap::worldToMap (float wx, float wy,unsigned int& mx, unsigned int& my)
 {
     bool is_valid = true;
 	 mx = (int)((wx - x_orig) / resolution);
@@ -50,34 +55,45 @@ bool costmap::worldtomap (float wx, float wy,unsigned int& mx, unsigned int& my)
      return is_valid;
 }
 
-void costmap::maptoworld(unsigned int mx, unsigned int my, double& wx, double& wy)
+void costmap::mapToWorld(unsigned int mx, unsigned int my, double& wx, double& wy)
 {
     wx = x_orig + (mx + 0.5) * resolution;
     wy = y_orig + (my + 0.5) * resolution;
 }
 
-signed char costmap::getcost(unsigned int mx,unsigned int my)
+void costmap::worldToMapEnforceBounds (double wx, double wy, int &mx, int &my)
+{
+	 mx = (int)((wx - x_orig) / resolution);
+     my = (int)((wy - y_orig) / resolution);
+     mx = std::min(mx,(int) cell_x_size);
+     mx = std::max(mx,0);
+     my = std::min(my,(int) cell_x_size);
+     my = std::max(my,0);
+
+}
+signed char costmap::getCost(unsigned int mx,unsigned int my)
 {
     
     signed char cost;
     if(mx < cell_x_size && my < cell_y_size)
-       cost = mat[mx][my];
+       cost = mat[my][mx];
     else
     {
         cost = default_cost;
-        ROS_ERROR("Out of range cost request");
+        if(show_debug) ROS_ERROR("Out of range cost request");
     }
     return cost;
 }
-signed char costmap::getcost_WC(float wx,float wy) //cost from world coordinates
+signed char costmap::getCost_WC(float wx,float wy) //cost from world coordinates
 {
     signed char cost;
     unsigned int mx,my;
-    if(!worldtomap(wx,wy,mx,my))
+    if(!worldToMap(wx,wy,mx,my))
     {
         cost = default_cost;
-        ROS_ERROR("Out of range cost request");
+        if(show_debug) ROS_ERROR("Out of range cost request");
     }
+    else cost = getCost(mx,my);
     return cost;
 }
 nav_msgs::OccupancyGrid costmap::getROSmsg()
@@ -95,32 +111,73 @@ nav_msgs::OccupancyGrid costmap::getROSmsg()
     msg.info.origin.orientation.y = 0.0;
     msg.info.origin.orientation.z = 0.0;
     msg.info.origin.orientation.w = 1.0;
-    msg.data = MatrixToVector(mat);
+    msg.data = MatrixToVector();
     return msg;
 }
-void costmap::setcost(unsigned int mx,unsigned int my,signed char cost)
+void costmap::setCost(unsigned int mx,unsigned int my,signed char cost)
 {
     if(mx < cell_x_size && my < cell_y_size)
-        mat[mx][my] = cost;
+        mat[my][mx] = cost;
     else
-        ROS_ERROR("Out of range cell request");
+        if(show_debug) ROS_ERROR("Out of range cell request");
 }
-void costmap::setcost_WC(float wx,float wy, signed char cost)
+void costmap::setCost_WC(float wx,float wy, signed char cost)
 {
      unsigned mx,my;
-     bool k = worldtomap(wx,wy,mx,my);
-     setcost(mx,my,cost);
+     bool k = worldToMap(wx,wy,mx,my);
+     setCost(mx,my,cost);
 }
-std::vector<signed char> costmap::MatrixToVector( std::vector< std::vector<signed char> > Matrix)
+void costmap::setCost_v(std::vector<signed char> vector,int cols)
 {
-    int rows = Matrix.size();
-    int cols = Matrix[0].size();
-    std::vector<signed char> Vector = std::vector<signed char> (rows*cols);
+    //ROS_ERROR_STREAM("vector size is   "<<vector.size());
+    
+    if (vector.size()%cols != 0)
+    {
+        ROS_ERROR("Number of columns:%d is incompatible with vector size:%d",cols,(int) vector.size());
+        return;
+    }
+    for(int i = 0;i< vector.size();i++)
+    {
+        mat[floor(i/cols)][i%cols] = vector[i];
+        //ROS_WARN_STREAM("cost:  " << (int) vector[i] << "is set to i and j:  " <<floor(i/cols) <<"   and   "<< i%cols );
+    }
+}
+void costmap::resetMap() 
+{
+    int rows = mat.size();
+    int cols = mat[0].size();
     for(int i = 0;i< rows; i++)
     {
         for(int j = 0; j< cols; j++)
         {
-            Vector[j + i*cols ] = Matrix[i][j];
+            mat[i][j] = 0;
+        }
+    }
+    
+}
+void costmap::resetMap (unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn)
+{
+    for(int i = x0;i< xn; i++)
+    {
+        for(int j = y0; j< yn; j++)
+        {
+            mat[i][j] = 0;
+        }
+    }    
+}
+std::vector<signed char> costmap::MatrixToVector()
+{
+    int rows = mat.size();
+    int cols = mat[0].size();
+    std::vector<signed char> Vector = std::vector<signed char> (rows*cols);
+    //ROS_INFO("rows:%d     cols:%d   size:%d",rows,cols,rows*cols);
+    for(int i = 0;i< rows; i++)
+    {
+        for(int j = 0; j< cols; j++)
+        {
+            Vector[j + i*cols ] = mat[i][j];
+            //ROS_WARN_STREAM("vector[ " <<j + i*cols<<" ] = Matrix["<<i<<"] ["<<j<<"]  =  "<< (int) Vector[j + i*cols ]);
+            
         }
     }
     return Vector;

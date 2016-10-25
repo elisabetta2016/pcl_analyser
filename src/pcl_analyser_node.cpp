@@ -51,11 +51,13 @@
  #include <tf/transform_listener.h>
  #include <Eigen/Dense> 
 
- #include "RoverPath.h" 
+ #include "RoverPath.h"
+ #include "costmap.h" 
  #include <vector>
 
 //#defs
- #define INFLATED_OBSTACLE 200
+ #define INFLATED_OBSTACLE 90
+ #define LETHAL_OBSTACLE 100
  #define WIDTH 255 //default
 
 //typedefs
@@ -65,19 +67,9 @@
 //Name Spaces
  using std::vector;
  using namespace Eigen;
- using costmap_2d::LETHAL_OBSTACLE;
 
-/*struct PATH_COST{
-	float Lethal_cost;
-	float Travel_cost;
-	float Inf_cost;
-	bool collision;	
-};
-struct CELL{
-	unsigned int x;
-	unsigned int y;
-	unsigned char c;
-};*/
+
+
 
 struct PointIndex {
 	int i;
@@ -135,7 +127,9 @@ class ObstacleDetectorClass
 			path_colision_pub_    = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
 			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
     		ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
-    			// Range image params
+    		Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
+			Obstacle_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
+				// Range image params
     			
 			support_size = 0.4f;
 			setUnseenToMaxRange = false;
@@ -379,7 +373,7 @@ class ObstacleDetectorClass
 	    	//if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
 	    	
 			master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
-			master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+			//master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
 			if( !is_on_costmap_margin(mx,my) )
 				master_grid_->setCost(mx,my, LETHAL_OBSTACLE);	
 	
@@ -387,7 +381,7 @@ class ObstacleDetectorClass
 	
 		lethal_inflation();	
   		// Costmap2DPublisher
-  		master_grid_ros->publishCostmap();
+		Obstacle_pub_.publish(master_grid_->getROSmsg());
   	
 	}
 	
@@ -403,9 +397,9 @@ class ObstacleDetectorClass
 		{
 			
 			master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
-			master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+			//master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
 	
-			if (obs_2d.points[i].intensity == 200) cost = INFLATED_OBSTACLE;
+			if (obs_2d.points[i].intensity == INFLATED_OBSTACLE ) cost = INFLATED_OBSTACLE;
 			else cost = LETHAL_OBSTACLE;
 			if( !is_on_costmap_margin(mx,my) )
 			master_grid_->setCost(mx,my, cost);
@@ -417,7 +411,7 @@ class ObstacleDetectorClass
 	
   		// Costmap2DPublisher
   	
-  		master_grid_ros->publishCostmap();
+  		Obstacle_pub_.publish(master_grid_->getROSmsg());
   	
 	}
 	
@@ -490,12 +484,12 @@ class ObstacleDetectorClass
 			}			
 		}		
 		
-	void inf_inflation(int i,int j, costmap_2d::Costmap2D* grid)
+	void inf_inflation(int i,int j, costmap* grid)
 	{
 		
 		
 		int cell_around = (int) floor(fabs(inf_rad/costmap_res))+1;
-		unsigned char INFLATION_OBSTACLE = 200;
+		unsigned char INFLATION_OBSTACLE = INFLATED_OBSTACLE;
 			for (int k=-cell_around; k<cell_around+1; k++) //loop around the lethal obstacle
 			{
 			
@@ -569,26 +563,33 @@ class ObstacleDetectorClass
 	{
 		ecostmap_meta = *msg;
 	}
+
+
+
 	void ElevationCallback(const nav_msgs::OccupancyGrid::ConstPtr& new_map)
-	{
-	  //ROS_INFO("received!");
-		
+	{	
 		unsigned int size_x = new_map->info.width, size_y = new_map->info.height;
-	
+	    //ROS_WARN_STREAM("map size:  "<< new_map->data.size()<<"height"<<size_y<<"width"<<size_x);
 		if(first_elevation_received)
 		{
 			
 			double orig_x = new_map->info.origin.position.x;
 			double orig_y = new_map->info.origin.position.y;
-			elevation_grid_ = new costmap_2d::Costmap2D(size_x,size_y,new_map->info.resolution,orig_x,orig_y,0);
-			elevation_grid_ros = new costmap_2d::Costmap2DPublisher(n,elevation_grid_,"base_link","elevation22",false);
+			//elevation_grid_ = new costmap_2d::Costmap2D(size_x,size_y,new_map->info.resolution,orig_x,orig_y,0);
+			//elevation_grid_ros = new costmap_2d::Costmap2DPublisher(n,elevation_grid_,"base_link","elevation22",false);
+			
+			elevation_grid_ = new costmap(orig_x,orig_y,size_x,size_y,new_map->info.resolution,"base_link",false);
+
 			first_elevation_received = false;
+
+			
 		}
 		unsigned int index = 0;
 		uint8_t temp;
 		int value;
-		elevation_grid_->resetMap(0,0,size_x-1,size_y-1);
-
+		//elevation_grid_->resetMap(0,0,size_x-1,size_y-1);
+		elevation_grid_->resetMap();
+		/*
 		for (unsigned int i = 0; i < size_y; ++i)
  		{
 			for (unsigned int j = 0; j < size_x; ++j)
@@ -599,16 +600,21 @@ class ObstacleDetectorClass
 				else value = floor(254*temp/100);
 				//ROS_INFO("temp is %d    value is %d", temp, value);
 				
-				elevation_grid_ros->updateBounds(0,size_x,0,size_y-1);
-				elevation_grid_->setCost(j,i,(unsigned char) value);
+				//elevation_grid_ros->updateBounds(0,size_x,0,size_y-1);
+				//elevation_grid_->setCost(j,i,(unsigned char) value);
+				//elevation_grid_->setcost(j,i, (signed char) value);
 				++index;
 			}
-		}
+		}*/
 		
-		elevation_grid_ros->publishCostmap();
-		testcallback();  /// <<-- Test
+		//elevation_grid_ros->publishCostmap();
+		elevation_grid_->setCost_v(new_map->data,new_map->info.width);
+		Elevation_pub_.publish(elevation_grid_->getROSmsg());
+		//testcallback();  /// <<-- Test
 		
 	}
+
+
 	
 	void test_lookuptable()
 	{
@@ -868,7 +874,7 @@ class ObstacleDetectorClass
 	
 	  	
   		
-	PATH_COST Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* grid)
+	PATH_COST Cost_of_path(MatrixXf path, costmap* grid)
 	{
 	  CELL prev_cell;
 	  CELL curr_cell;
@@ -962,10 +968,11 @@ class ObstacleDetectorClass
 		elevation_cell_x = floor(abs(elevation_costmap_x_size/elevation_resolution_xy));
 		elevation_cell_y = floor(abs(elevation_costmap_y_size/elevation_resolution_xy));
 
-		master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,origin_x,origin_y,0);
-		n = &n_;
+		//master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,origin_x,origin_y,0);
+		master_grid_ = new costmap(origin_x,origin_y,cell_x,cell_y,costmap_res,"base_link",false);
+		//n = &n_;
 			
-		master_grid_ros = new costmap_2d::Costmap2DPublisher(n,master_grid_,global_frame,topic_name,false);
+		//master_grid_ros = new costmap_2d::Costmap2DPublisher(n,master_grid_,global_frame,topic_name,false);
 		//costmap end
 		
 		
@@ -1056,7 +1063,7 @@ class ObstacleDetectorClass
 				first_loop = false;
 					
 			}
-		    test_lookuptable();
+		    //test_lookuptable();
 			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
     			costmap_cl.header.frame_id = "base_link";
@@ -1103,6 +1110,8 @@ class ObstacleDetectorClass
 		ros::Publisher path_colision_pub_;
 		ros::Publisher lookuppath_pub_;
 		ros::Publisher ChassisPose_pub_;
+		ros::Publisher Elevation_pub_;
+		ros::Publisher Obstacle_pub_;
 
 		geometry_msgs::Vector3 repulsive_force;
 		
@@ -1117,8 +1126,9 @@ class ObstacleDetectorClass
 		
 
 		//costmap variables
-		costmap_2d::Costmap2D* master_grid_;
-		costmap_2d::Costmap2D* elevation_grid_;
+		costmap* master_grid_;
+		costmap* elevation_grid_;
+		
 		
 		double costmap_x_size;
 		double costmap_y_size;
@@ -1132,8 +1142,8 @@ class ObstacleDetectorClass
 		unsigned int cell_elevation_y;
 		
 		std::string global_frame, topic_name;
-		costmap_2d::Costmap2DPublisher* master_grid_ros;
-		costmap_2d::Costmap2DPublisher* elevation_grid_ros;
+		//costmap_2d::Costmap2DPublisher* master_grid_ros;
+		//costmap_2d::Costmap2DPublisher* elevation_grid_ros;
 		// Elevation costmap params
     	double elevation_resolution_xy;
     	double elevation_origin_x;

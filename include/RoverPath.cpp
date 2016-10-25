@@ -6,7 +6,7 @@ using costmap_2d::LETHAL_OBSTACLE;
 
 
 		
-RoverPathClass::RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* grid_)
+RoverPathClass::RoverPathClass(double b_,int sample_, costmap *grid_)
 {
 	Rover_b = b_;
 	sample = sample_;
@@ -17,7 +17,7 @@ RoverPathClass::RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* gri
 	Lethal_cost_inc = 10.0;
 	Inf_cost_inc = 3.0;
 }
-RoverPathClass::RoverPathClass(double b_,int sample_, costmap_2d::Costmap2D* obs_grid_, costmap_2d::Costmap2D* e_grid_)
+RoverPathClass::RoverPathClass(double b_,int sample_, costmap *obs_grid_, costmap *e_grid_)
 {
 	Rover_b = b_;
 	sample = sample_;
@@ -66,7 +66,7 @@ void RoverPathClass::set_pso_params_default()
   	iteration = 5;
 }
 	
-void RoverPathClass::update_costmap(costmap_2d::Costmap2D* grid_)
+void RoverPathClass::update_costmap(costmap *grid_)
 {
 	master_grid_ = grid_;
 }
@@ -77,7 +77,7 @@ pcl::PointCloud<pcl::PointXYZ> RoverPathClass::get_path_trace_cloud()
 	return path_trace_pcl;
 }
 	
-PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap_2d::Costmap2D* grid)
+PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap *grid)
 {
 	CELL prev_cell;
 	CELL curr_cell;
@@ -187,7 +187,7 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
-void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
+void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
 {
 	int vector_size = Path.cols();
 	VectorXf temp_output (vector_size);
@@ -209,7 +209,6 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_g
 	msg.poses = std::vector <geometry_msgs::Pose> (vector_size);
 	for (size_t i=0;i < vector_size;i++)
 	{
-		//e_grid->worldToMapEnforceBounds((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), mx, my); //not good
 		if(is_in_costmap(FrontRightTrack(0,i),FrontRightTrack(1,i),e_grid) &&
 		   is_in_costmap(FrontLeftTrack(0,i),FrontLeftTrack(1,i),e_grid))
 		   {
@@ -221,7 +220,7 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap_2d::Costmap2D* e_g
 		   }
 		else
 		{   // The point is not in the costmap 
-		    ROS_ERROR_STREAM("FRT \n" << FrontRightTrack << "FrontLeftTrack" << FrontLeftTrack );
+		    //ROS_ERROR_STREAM("FRT \n" << FrontRightTrack << "FrontLeftTrack" << FrontLeftTrack );
 			temp_pose.position.x = Path(0,i);
 			temp_pose.position.y = Path(1,i);
 			temp_pose.position.z = 0.0;
@@ -538,13 +537,14 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
     
 }
 //Private member functions
-bool RoverPathClass::is_in_costmap(float x, float y, costmap_2d::Costmap2D* grid)
+bool RoverPathClass::is_in_costmap(float x, float y, costmap *grid)
 {
 	bool output = false;
 	//ROS_ERROR("1");
 	float x_origin = grid->getOriginX();
-	float x_size = grid->getSizeInMetersX();
-	float y_size = grid->getSizeInMetersY();
+	float x_size,y_size;
+	grid->get_costmap_size_in_meter(x_size,y_size);
+	
 	
 	if( x > x_origin && x < (x_size + x_origin) && fabs(y) < y_size )
 	{
