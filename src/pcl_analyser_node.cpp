@@ -37,8 +37,6 @@
   #include <nav_msgs/Path.h>
   #include <sensor_msgs/point_cloud_conversion.h>
 
-
-
  #include <pcl/keypoints/iss_3d.h>
  #include <pcl/common/transforms.h>
  //Costmap
@@ -67,9 +65,6 @@
 //Name Spaces
  using std::vector;
  using namespace Eigen;
-
-
-
 
 struct PointIndex {
 	int i;
@@ -110,36 +105,33 @@ class ObstacleDetectorClass
       n_pr = n_pr_temp;
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
-
-			
 			subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
 			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
 			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
 			subFromElevationCostmapMeta_ = n_.subscribe("/elevation_costmap_MetaData", 1, &ObstacleDetectorClass::EleMetaCallback,this);
 			// publishers
-			obstcle_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
+      obstcle_pub_		    = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-			path_trace_pub_       = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
-			
-			repuslive_force_pub_  = n_.advertise<geometry_msgs::Vector3> ("force", 1);
+      path_trace_pub_     = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
+      repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
 			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
-			path_solution_pub_    = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
-			path_colision_pub_    = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
+      path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
+      path_colision_pub_  = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
 			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
-    		ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
-    		Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
-			Obstacle_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
-				// Range image params
+      ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
+      Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
+      Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
+      /*
+      // Range image params
     			
 			support_size = 0.4f;
 			setUnseenToMaxRange = false;
-			
+      */
 			//Initializer
 			repulsive_force.x = 0.0;
 			repulsive_force.y = 0.0;
 			repulsive_force.z = 0.0;
-			
 			first_elevation_received = true;
 			
 			
@@ -155,48 +147,15 @@ class ObstacleDetectorClass
 			origin_y = -3.0;
 			
 			//Elevation costmap params
-		        elevation_resolution_xy = 0.05;
-    			elevation_origin_x = 0.493;
-    			elevation_origin_y = -1.5;
-    			elevation_costmap_x_size = 3.0;
-    			elevation_costmap_y_size = 3.0;
+      elevation_resolution_xy = 0.05;
+      elevation_origin_x = 0.493;
+      elevation_origin_y = -1.5;
+      elevation_costmap_x_size = 3.0;
+      elevation_costmap_y_size = 3.0;
 			
     			
 	}
-	
-
-	void cloud_voxel_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,float cube_size)
-	{
 		
-  		pcl::VoxelGrid<pcl::PointXYZ> VG;
-  		VG.setInputCloud (cloud_in);
-  		VG.setLeafSize (cube_size, cube_size, cube_size);
- 		VG.filter (*cloud_out);	
-	
-	}	
-
-	void cloud_outlier_removal(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
-	{
-		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-  		sor.setInputCloud (cloud_in);
-  		sor.setMeanK (50);
-  		sor.setStddevMulThresh (1.0);
-  		sor.filter (*cloud_filtered);
-	}
-  	
-  	void compute_repulsive_force(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_proj)
-  	{
-  	
-  	  for (size_t i = 0; i < obs_proj->points.size (); ++i)
-		{
-			repulsive_force.x +=  1/obs_proj->points[i].x;
-			repulsive_force.y +=  1/obs_proj->points[i].y;
-			
-		}
-
-  	}
-
-	
 	void obstacle_find_Publish(const sensor_msgs::PointCloud2ConstPtr& cloud)
 	{
 		//ROS_INFO("Obstacle detection Starts!");
@@ -204,13 +163,10 @@ class ObstacleDetectorClass
   		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_pcl (new pcl::PointCloud<pcl::PointXYZ>);
   		pcl::fromROSMsg(*cloud, *cloud_pcl);
 
- 		*cloud_filtered_pcl = *cloud_pcl;
-
+      *cloud_filtered_pcl = *cloud_pcl;
   
-  
-  
-		// Create the normal estimation class, and pass the input dataset to it
- 		pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+      // Create the normal estimation class, and pass the input dataset to it
+      pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
   		ne.setInputCloud (cloud_pcl);
   		ne.setViewPoint(0,0,0.3);
 
@@ -236,321 +192,65 @@ class ObstacleDetectorClass
   		// Defining  the search point
   		pcl::PointXYZ searchPoint;
 
-		// Starting to search and insert
-		pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_pcl (new pcl::PointCloud<pcl::PointXYZ>);
-		pcl::PointCloud<pcl::PointXYZ> obstacle_nomal_pcl;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr obs_projected (new pcl::PointCloud<pcl::PointXYZ>);
-		int K = 1;
-		std::vector<int> pointIdxNKNSearch(K);
-		std::vector<float> pointNKNSquaredDistance(K);
+      // Starting to search and insert
+      pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_pcl (new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ> obstacle_nomal_pcl;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr obs_projected (new pcl::PointCloud<pcl::PointXYZ>);
+      int K = 1;
+      std::vector<int> pointIdxNKNSearch(K);
+      std::vector<float> pointNKNSquaredDistance(K);
 	
-		obstacle_nomal_pcl = *cloud_filtered_pcl;
+      obstacle_nomal_pcl = *cloud_filtered_pcl;
 
-		for (size_t i = 0; i < cloud_filtered_pcl->points.size (); ++i)
-		{
-			searchPoint.x = cloud_filtered_pcl->points[i].x;
-			searchPoint.y = cloud_filtered_pcl->points[i].y;
-			searchPoint.z = cloud_filtered_pcl->points[i].z;
+      for (size_t i = 0; i < cloud_filtered_pcl->points.size (); ++i)
+      {
+        searchPoint.x = cloud_filtered_pcl->points[i].x;
+        searchPoint.y = cloud_filtered_pcl->points[i].y;
+        searchPoint.z = cloud_filtered_pcl->points[i].z;
 		
      		if ( kdtree.nearestKSearch (searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 )
-  			{
+          {
   	 	
-				for (size_t j = 0; j < pointIdxNKNSearch.size (); ++j)
-				{
+          for (size_t j = 0; j < pointIdxNKNSearch.size (); ++j)
+          {
 
-					//obstacle_nomal_pcl.points[pointIdxNKNSearch[j]].z = cloud_normals->points[pointIdxNKNSearch[j]].normal_z;
-				
-				
-					if(cloud_normals->points[pointIdxNKNSearch[j]].normal_z < normal_threshold &&
+            //obstacle_nomal_pcl.points[pointIdxNKNSearch[j]].z = cloud_normals->points[pointIdxNKNSearch[j]].normal_z;
+            if(cloud_normals->points[pointIdxNKNSearch[j]].normal_z < normal_threshold &&
 			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        > height_threshold &&
 			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        < height_max)
-			       		{
-			
+            {
 							obstacle_pcl->points.push_back (cloud_pcl->points[ pointIdxNKNSearch[j] ]);
 						}
-				}		
+          }
 
-			}
+        }
 	
-		}
+       }
 	
-		obstacle_pcl->width = int (obstacle_pcl->points.size ());
-		obstacle_pcl->height = 1;
-		obstacle_pcl->is_dense = true;
+       obstacle_pcl->width = int (obstacle_pcl->points.size ());
+       obstacle_pcl->height = 1;
+       obstacle_pcl->is_dense = true;
 	
-		//cloud_outlier_removal(obstacle_pcl,obstacle_pcl);
+       //cloud_outlier_removal(obstacle_pcl,obstacle_pcl);
 	
-		pcl::toROSMsg(*obstacle_pcl,output_cloud);
+       pcl::toROSMsg(*obstacle_pcl,output_cloud);
+       output_cloud.header.frame_id = "laser";
+       output_cloud.header.stamp = ros::Time::now();
 	
-    	output_cloud.header.frame_id = "laser";
-    	output_cloud.header.stamp = ros::Time::now();	
-    	
-		//ROS_INFO("Nummber of points in obstacle_cloud is:");
-		//std::cout << obstacle_pcl->points.size() << "\n";
-	
-		obstcle_pub_.publish(output_cloud);
-		//ROS_WARN("Obstacle cloud published");
-		cloud_2D_projection(obstacle_pcl,obs_projected);
-	
-	
-		pcl::toROSMsg(*obs_projected,cloud_obstacle_projected);
-    	cloud_obstacle_projected.header.frame_id = "laser";
-    	cloud_obstacle_projected.header.stamp = ros::Time::now();		
-		obstcle_proj_pub_.publish(cloud_obstacle_projected);
-	
-		//compute_repulsive_force(obs_projected);
-	
-	
-		cloud_to_costmap(obstacle_pcl);
-		costmap_to_cloud();
-	
-	
-		repuslive_force_pub_.publish(repulsive_force);
-		repulsive_force.x = 0.0;
-		repulsive_force.y = 0.0;
-		repulsive_force.z = 0.0;
-
-	
-	}
-	
-	void cloud_2D_projection(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out)
-	{
-	
-		// Create a set of planar coefficients with X=Y=0,Z=1
-		pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-		coefficients->values.resize (4);
-		coefficients->values[0] = coefficients->values[1] = 0;
-		coefficients->values[2] = 1.0;
-		coefficients->values[3] = 0;
-
-		// Create the filtering object
-		pcl::ProjectInliers<pcl::PointXYZ> proj;
-		proj.setModelType (pcl::SACMODEL_PLANE);
-		proj.setInputCloud (cloud_in);
-		proj.setModelCoefficients (coefficients);
-		proj.filter (*cloud_out);
-		
-	}
-	
-	void cloud_call_back(const sensor_msgs::PointCloud2ConstPtr& cloud)
-	{
-		obstacle_find_Publish(cloud);
-		
-	
-	}
-	
-	bool is_in_costmap(float x, float y)
-	{
-		double margin = 0.5;
-		bool out = false;
-		if ( x < ( costmap_x_size + origin_x - margin) && x > (-0.0 + origin_x + margin))
-		{
-			if ( y < (0 - origin_y - margin) && y > (-costmap_y_size - origin_y + margin) ) out = true;
-		}
-		
-		return out;
-	}
-	
-	bool is_on_costmap_margin(int mx,int my)
-	{
-		bool out = true;
-		int margin = 4;
-		int x_Unorm = (int) cell_x - margin;
-		int y_Unorm = (int) cell_y - margin;
-		if(mx < x_Unorm && mx > margin && my < y_Unorm && my > margin) out = false; 
-		return out;
-	}
-	
-	void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_2d)
-	{
-	
-		int mx;
-		int my;
-
-    	master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
-    
-		for (size_t i = 0; i < obs_2d->points.size (); ++i)
-		{
-	    	//if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
-	    	
-			master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
-			//master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
-			if( !is_on_costmap_margin(mx,my) )
-				master_grid_->setCost(mx,my, LETHAL_OBSTACLE);	
-	
-		}  
-	
-		lethal_inflation();	
-  		// Costmap2DPublisher
-		Obstacle_pub_.publish(master_grid_->getROSmsg());
-  	
-	}
-	
-	void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZI> obs_2d)
-	{
-	
-		int mx;
-		int my;
-
-    	master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
-    	unsigned char cost;
-		for (size_t i = 0; i < obs_2d.points.size (); ++i)
-		{
-			
-			master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
-			//master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
-	
-			if (obs_2d.points[i].intensity == INFLATED_OBSTACLE ) cost = INFLATED_OBSTACLE;
-			else cost = LETHAL_OBSTACLE;
-			if( !is_on_costmap_margin(mx,my) )
-			master_grid_->setCost(mx,my, cost);
-	    		
-	
-	
-		} 
-	
-	
-  		// Costmap2DPublisher
-  	
-  		Obstacle_pub_.publish(master_grid_->getROSmsg());
-  	
-	}
-	
-	
-	void lethal_inflation() //fill the cell around the lethal obstacle
-		{
-			
-	  		/* vector< vector<int> > matrix
-	  		
-					0 1 2 3 4 5 6 7 8 ...
-				0	x
-				1	y
-				
-			*/
-			vector< vector<int> > matrix;
-			matrix.resize(WIDTH);
-			int index = -1;
-			
-			for (unsigned int i=0; i < cell_x ; i++) //loop in x
-			{
-				for (unsigned int j=0; j < cell_y ; j++) //loop in y
-				{
-					if(master_grid_->getCost(i,j) == LETHAL_OBSTACLE) //find the lethal obstacle
-					{
-						index++;
-						matrix[index].resize(2);
-						matrix[index][0] = i;
-						matrix[index][1] = j;
-						//list_x_lethal.push_back(i); //fill the list with lethal obstacles
-						//list_y_lethal.push_back(j);
-					}
-				}
-			}
-			
-			//loop in the list of lethal obstacles
-			for (int k=0; k < index; k++) 
-			{
-				int cell_around = (int) floor(fabs(lethal_rad/costmap_res))+1;
-				int i = matrix[k][0]; //x
-				int j = matrix[k][1]; //y
-				
-				for (int ii=-cell_around; ii<cell_around+1; ii++) //loop around the obstacle
-				{
-					for (int jj=-cell_around; jj<cell_around+1; jj++) 
-					{
-					
-						if ((i+ii) < 0) ii = std::min(-i,ii);
-				        	if ((j+jj) < 0) jj = std::min(-j,jj);
-						try
-						
-						{ 
-						if( !is_on_costmap_margin(i+ii,j+jj) )
-						master_grid_->setCost(i+ii, j+jj, LETHAL_OBSTACLE); //fill the cell around the obstacle
-						inf_inflation(i+ii,j+jj, master_grid_);
-						
-						}
-				
-						//continue even if exit from the grid
-				
-						catch(int e)	
-			
-						{
-						//do nothing
-						}
-					}
-				}
-				
-				
-			
-			}			
-		}		
-		
-	void inf_inflation(int i,int j, costmap* grid)
-	{
-		
-		
-		int cell_around = (int) floor(fabs(inf_rad/costmap_res))+1;
-		unsigned char INFLATION_OBSTACLE = INFLATED_OBSTACLE;
-			for (int k=-cell_around; k<cell_around+1; k++) //loop around the lethal obstacle
-			{
-			
-				for (int l=-cell_around; l<cell_around+1; l++) 
-				{
-					
-					if ((i+k) < 0) k = std::min(-i,k);
-					if ((i+l) < 0) l = std::min(-j,l);
-					unsigned char cost = 0;
-					if( !is_on_costmap_margin(k+i,l+j) )
-						cost = grid->getCost((unsigned int)k+i,(unsigned int)l+j);
-					
-					
-					if(cost != LETHAL_OBSTACLE) //if is a lethal do nothing
-					{
-						try {
-						if( !is_on_costmap_margin(i+k,j+l) )
-						     grid->setCost((unsigned int)i+k, (unsigned int)j+l, INFLATION_OBSTACLE); //fill the cell around lethal_obs
-						}
-						catch(int e)
-						{
-						//do nothing
-						}
-					}
-				}
-			}
-	}	
-		
-	
-	void costmap_to_cloud()
-	{
-	  double temp_x;
-	  double temp_y;
-	  cost_map_cloud.clear();
-	  for (size_t i=0; i < cell_x + 1; i++)
-	    {
-		for (size_t j=0; j < cell_y + 1; j++)
-		{
-			unsigned char cost = master_grid_->getCost(i,j);
-			if(cost == LETHAL_OBSTACLE || cost == INFLATED_OBSTACLE) 
-			{
-				master_grid_->mapToWorld(i,j,temp_x,temp_y);
-
-				for (int k = -1; k < 2; k++) // -1;2
-				{
-					for (int l = -1; l < 2; l++) // -1;2
-					{
-						pcl::PointXYZI point;
-						point.z = 0.0;
-						point.x = temp_x + (float) k*costmap_res/2*0.9;
-						point.y = temp_y + (float) l*costmap_res/2*0.9;	
-						point.intensity = (float) cost;		
-						cost_map_cloud.points.push_back(point);
-					}
-				}
-			}
-		
-		}
-	   }
-	
+       obstcle_pub_.publish(output_cloud);
+       //ROS_WARN("Obstacle cloud published");
+       cloud_2D_projection(obstacle_pcl,obs_projected);
+       pcl::toROSMsg(*obs_projected,cloud_obstacle_projected);
+       cloud_obstacle_projected.header.frame_id = "laser";
+       cloud_obstacle_projected.header.stamp = ros::Time::now();
+       obstcle_proj_pub_.publish(cloud_obstacle_projected);
+       //compute_repulsive_force(obs_projected);
+       cloud_to_costmap(obstacle_pcl);
+       costmap_to_cloud();
+       repuslive_force_pub_.publish(repulsive_force);
+       repulsive_force.x = 0.0;
+       repulsive_force.y = 0.0;
+       repulsive_force.z = 0.0;
 	}
 	 	  	
 	void GoalCallback(const geometry_msgs::Vector3::ConstPtr& msg)
@@ -560,58 +260,29 @@ class ObstacleDetectorClass
 		nav_goal(0,2) = 0.0; 
 		goal_present = true; 
 	}
-    void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg)
+
+  void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg)
 	{
 		ecostmap_meta = *msg;
 	}
 
-
-
 	void ElevationCallback(const nav_msgs::OccupancyGrid::ConstPtr& new_map)
 	{	
 		unsigned int size_x = new_map->info.width, size_y = new_map->info.height;
-	    //ROS_WARN_STREAM("map size:  "<< new_map->data.size()<<"height"<<size_y<<"width"<<size_x);
-		if(first_elevation_received)
+    if(first_elevation_received)
 		{
 			
 			double orig_x = new_map->info.origin.position.x;
 			double orig_y = new_map->info.origin.position.y;
-			//elevation_grid_ = new costmap_2d::Costmap2D(size_x,size_y,new_map->info.resolution,orig_x,orig_y,0);
-			//elevation_grid_ros = new costmap_2d::Costmap2DPublisher(n,elevation_grid_,"base_link","elevation22",false);
-			
+
 			elevation_grid_ = new costmap(orig_x,orig_y,size_x,size_y,new_map->info.resolution,"base_link",false);
 
-			first_elevation_received = false;
-
-			
+			first_elevation_received = false;			
 		}
-		unsigned int index = 0;
-		uint8_t temp;
-		int value;
-		//elevation_grid_->resetMap(0,0,size_x-1,size_y-1);
+
 		elevation_grid_->resetMap();
-		/*
-		for (unsigned int i = 0; i < size_y; ++i)
- 		{
-			for (unsigned int j = 0; j < size_x; ++j)
-			{
-				temp = new_map->data[index];
-				
-				if(temp == 255) value = 255;
-				else value = floor(254*temp/100);
-				//ROS_INFO("temp is %d    value is %d", temp, value);
-				
-				//elevation_grid_ros->updateBounds(0,size_x,0,size_y-1);
-				//elevation_grid_->setCost(j,i,(unsigned char) value);
-				//elevation_grid_->setcost(j,i, (signed char) value);
-				++index;
-			}
-		}*/
-		
-		//elevation_grid_ros->publishCostmap();
 		elevation_grid_->setCost_v(new_map->data,new_map->info.width);
 		Elevation_pub_.publish(elevation_grid_->getROSmsg());
-		//testcallback();  /// <<-- Test
 		
 	}
 
@@ -624,25 +295,26 @@ class ObstacleDetectorClass
     //ros::NodeHandle n_pr("~");
     sensor_msgs::PointCloud2 PC_msg;
     MatrixXf tra;
-    ROS_WARN("1");
+
     tra.setZero( 3, sample_L);
     VectorXf V_in(sample_L);
     VectorXf Omega_in(sample_L);
     Vector3f x_0,x_dot_0,x_dot_f;
-    ROS_WARN("2");
+
     x_0 << 0.0,0.0,0.0;
     x_dot_0 << 0.0,0.0,0.0;
 
-    RoverPathClass Rov(0.01, sample_L,master_grid_);
+    RoverPathClass Rov(0.0, sample_L,master_grid_);
     std::vector<double> v_vector;
     std::vector<double> o_vector;
     n_pr.getParam("V_1", v_vector);
     n_pr.getParam("path_number", path_number);
-    ROS_WARN_STREAM(path_number);
-    ROS_WARN("3");
+
     V_in = FromSTDvector(v_vector);
     std::ostringstream j_no;
     std::string temp;
+
+    nav_msgs::Path temp_path;
     for(int j=0;j < path_number;j++)
     {
       j_no.str("");
@@ -655,19 +327,40 @@ class ObstacleDetectorClass
       n_pr.getParam("O_"+j_no.str(), o_vector);
 
       Omega_in = FromSTDvector(o_vector);
-      ROS_WARN("4 - loop");
-      tra = Rov.Rover_vw(V_in, Omega_in, 0.01, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
-      ROS_WARN("5 - loop");
+
+      tra = Rov.Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
+      temp_path = PathFromEigenMat(tra, "base_link");
+      path_vector.push_back(temp_path);
+
+
       PointXYZ point;
       for(size_t i=0; i<tra.cols();i++)
       {
         point.x = tra(0,i);
         point.y = tra(1,i);
         point.z = 0.0;
-        ROS_WARN("6 - 2xloop");
+
         PC.push_back(point);
 
       }
+
+      // -Omega
+      tra.setZero();
+      tra = Rov.Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
+
+      temp_path = PathFromEigenMat(tra, "base_link");
+      path_vector.push_back(temp_path);
+
+      for(size_t i=0; i<tra.cols();i++)
+      {
+        point.x = tra(0,i);
+        point.y = tra(1,i);
+        point.z = 0.0;
+
+        PC.push_back(point);
+
+      }
+
     }
 
     pcl::toROSMsg(PC,PC_msg);
@@ -745,16 +438,6 @@ class ObstacleDetectorClass
 		
 	}
 
-	VectorXf FromSTDvector(std::vector<double> input)
-	{
-		VectorXf out((int)input.size());
-		for (size_t i = 0; i < input.size(); i++)
-		{
-			out(i) = input[i];	
-		}
-		return out;
-	}
-
 	void testcallback()
 	{
 		double Ts = 3.00;
@@ -828,11 +511,8 @@ class ObstacleDetectorClass
 		float V_in     = (V_right + V_left) / 2  ;
 		float Omega_in = (-V_right + V_left) / 0.8; //to be checked
 		
-		
-  		// inputs
-		
-  		if(V_in > 0.01)
-  		{
+    if(V_in > 0.01)
+    {
   			VectorXf V_input;
   			VectorXf Omega_input;
   			Vector2f V_curr_c;
@@ -864,119 +544,44 @@ class ObstacleDetectorClass
   			
   			//Defining the instant of RoverPathClass
   			int sample_ = sample;
-			double b_ = b; //b
-  			RoverPathClass Rov(b_,sample_,master_grid_);
-  			
-  			//invoke
-  			
+        double b_ = b; //b
+  			RoverPathClass Rov(b_,sample_,master_grid_);	
   			x = Rov.Rover_vw(V_input, Omega_input, b, Ts, x_0, x_dot_0 , sample, x_dot_f);
-  			//ROS_WARN_STREAM_ONCE("trajectory is " << x);
-  			
-  			//Publish the path
-  			nav_msgs::Path robot_path;			
-			robot_path.header.stamp = ros::Time::now();
-			robot_path.header.frame_id = "base_link";
-			robot_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
-  			for(size_t i=0; i < sample; i++)
-			{
 
-				robot_path.poses[i].pose.position.x = x(0,i);
-				robot_path.poses[i].pose.position.y = x(1,i);
-				robot_path.poses[i].pose.position.z = 0.0;
-			}
-			path_colision_pub_.publish(robot_path);
+  			//Publish the path
+        nav_msgs::Path robot_path = PathFromEigenMat(x, "base_link");
+        path_colision_pub_.publish(robot_path);
   			//Publish end
   			
   			PATH_COST cost = Cost_of_path(x, master_grid_);
   			ROS_WARN_ONCE("lethal cost = %f",cost.Lethal_cost);
-  	
   		
   			if (cost.collision || (cost.Lethal_cost > 0.0) || (cost.Inf_cost > 0.0))
   			{
   		
   				if (!goal_present)
   				{
-  					//ROS_INFO("trajectory");
-  					//std::cout << x << std::endl;
   					nav_goal(0) = x(0,x.cols()-1);
   					nav_goal(1) = x(1,x.cols()-1);
   					nav_goal(2) = 0.0;
   				}
-  				
-  			
+
   				VectorXf output(6);
   				MatrixXf output_tra;
   				bool solution_found;
   				if (!pso_analyse)
   				{
-  					//ROS_WARN(" ---- >> V_in: %f, Omega_in:%f",V_in,Omega_in );
   					output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
-  					//here publish
-  					
-  					nav_msgs::Path robot_opt_path;			
-					robot_opt_path.header.stamp = ros::Time::now();
-					robot_opt_path.header.frame_id = "base_link";
-					robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
-  					for(size_t i=0; i < sample; i++)
-					{
-
-						robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
-						robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
-						robot_opt_path.poses[i].pose.position.z = 0.0;
-					}
-					path_solution_pub_.publish(robot_opt_path);
-  					
+            nav_msgs::Path robot_opt_path = PathFromEigenMat(output_tra, "base_link");
+            path_solution_pub_.publish(robot_opt_path);
   					ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
-  					
-					pso_analyse = true;  			
+            pso_analyse = true;
   				}
   				
   			
   			}		
 	
 		}
-	}
-	
-	  	
-  		
-	PATH_COST Cost_of_path(MatrixXf path, costmap* grid)
-	{
-	  CELL prev_cell;
-	  CELL curr_cell;
-	  prev_cell.x = 0;
-	  prev_cell.y = 0;
-	  PATH_COST cost;
-	  cost.Lethal_cost = 0.0;
-	  cost.Travel_cost = Travel_cost_inc;
-	  cost.Inf_cost = 0.0;
-	  cost.collision = false;
-	
-	  for(size_t i=0; i < path.cols(); i++)
-	  {
-		unsigned int mx;
-		unsigned int my;
-		grid->worldToMap((double) path(0,i),(double) path(1,i),curr_cell.x,curr_cell.y);
-		//debug
-	     //ROS_WARN("cell x:%d cell y:%d",curr_cell.x,curr_cell.y);
-		
-		//debug end
-		if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
-		{
-			curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
-			if (curr_cell.c == LETHAL_OBSTACLE)
-			{
-				cost.Lethal_cost += Lethal_cost_inc;
-				cost.collision = true;
-			}
-			if (curr_cell.c == INFLATED_OBSTACLE)
-			{
-				cost.Inf_cost += Inf_cost_inc; 
-			}
-			cost.Travel_cost +=  Travel_cost_inc;
-			prev_cell = curr_cell;
-		}
-	  }
-	  return cost;
 	}
 
 	void run()
@@ -1156,7 +761,7 @@ class ObstacleDetectorClass
 		// Node Handler
 		ros::NodeHandle n_;
 		ros::NodeHandle* n;
-     ros::NodeHandle n_pr;
+    ros::NodeHandle n_pr;
 		// Subscribers
 		ros::Subscriber SubFromCloud_;
 		ros::Subscriber subFromTrackSpeed_;
@@ -1189,11 +794,9 @@ class ObstacleDetectorClass
 		sensor_msgs::PointCloud2 cloud_obstacle_projected; 
 		sensor_msgs::PointCloud2 costmap_cl;
 		
-
 		//costmap variables
 		costmap* master_grid_;
 		costmap* elevation_grid_;
-		
 		
 		double costmap_x_size;
 		double costmap_y_size;
@@ -1210,11 +813,11 @@ class ObstacleDetectorClass
 		//costmap_2d::Costmap2DPublisher* master_grid_ros;
 		//costmap_2d::Costmap2DPublisher* elevation_grid_ros;
 		// Elevation costmap params
-    	double elevation_resolution_xy;
-    	double elevation_origin_x;
-    	double elevation_origin_y;
-    	double elevation_costmap_x_size;
-    	double elevation_costmap_y_size;
+    double elevation_resolution_xy;
+    double elevation_origin_x;
+    double elevation_origin_y;
+    double elevation_costmap_x_size;
+    double elevation_costmap_y_size;
 		unsigned int elevation_cell_x;
 		unsigned int elevation_cell_y;
 		
@@ -1232,9 +835,345 @@ class ObstacleDetectorClass
 		pcl::PointCloud<pcl::PointXYZ> path_trace_pcl;
 		float path_z_inc;
 		int particle_no;
-  		int iteration;
-  		
-		
+    int iteration;
+
+    //Lookup table
+    std::vector<nav_msgs::Path> path_vector;
+
+private:
+
+    nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id)
+    {
+        nav_msgs::Path out;
+        int length = in.cols();
+        out.header.stamp = ros::Time::now();
+        out.header.frame_id = frame_id;
+        out.poses = std::vector<geometry_msgs::PoseStamped> (length);
+        for(int i=0;i< length;i++)
+        {
+          out.poses[i].pose.position.x = in(0,i);
+          out.poses[i].pose.position.y = in(1,i);
+          out.poses[i].pose.position.z = 0.0;
+        }
+        return out;
+    }
+
+    VectorXf FromSTDvector(std::vector<double> input)
+    {
+      VectorXf out((int)input.size());
+      for (size_t i = 0; i < input.size(); i++)
+      {
+        out(i) = input[i];
+      }
+      return out;
+    }
+
+    PATH_COST Cost_of_path(MatrixXf path, costmap* grid)
+    {
+      CELL prev_cell;
+      CELL curr_cell;
+      prev_cell.x = 0;
+      prev_cell.y = 0;
+      PATH_COST cost;
+      cost.Lethal_cost = 0.0;
+      cost.Travel_cost = Travel_cost_inc;
+      cost.Inf_cost = 0.0;
+      cost.collision = false;
+
+      for(size_t i=0; i < path.cols(); i++)
+      {
+      unsigned int mx;
+      unsigned int my;
+      grid->worldToMap((double) path(0,i),(double) path(1,i),curr_cell.x,curr_cell.y);
+      //debug
+         //ROS_WARN("cell x:%d cell y:%d",curr_cell.x,curr_cell.y);
+
+      //debug end
+      if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
+      {
+        curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
+        if (curr_cell.c == LETHAL_OBSTACLE)
+        {
+          cost.Lethal_cost += Lethal_cost_inc;
+          cost.collision = true;
+        }
+        if (curr_cell.c == INFLATED_OBSTACLE)
+        {
+          cost.Inf_cost += Inf_cost_inc;
+        }
+        cost.Travel_cost +=  Travel_cost_inc;
+        prev_cell = curr_cell;
+      }
+      }
+      return cost;
+    }
+
+    void cloud_voxel_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,float cube_size)
+    {
+
+        pcl::VoxelGrid<pcl::PointXYZ> VG;
+        VG.setInputCloud (cloud_in);
+        VG.setLeafSize (cube_size, cube_size, cube_size);
+        VG.filter (*cloud_out);
+
+    }
+
+    void cloud_outlier_removal(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
+    {
+      pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+        sor.setInputCloud (cloud_in);
+        sor.setMeanK (50);
+        sor.setStddevMulThresh (1.0);
+        sor.filter (*cloud_filtered);
+    }
+
+    void compute_repulsive_force(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_proj)
+    {
+
+        for (size_t i = 0; i < obs_proj->points.size (); ++i)
+        {
+          repulsive_force.x +=  1/obs_proj->points[i].x;
+          repulsive_force.y +=  1/obs_proj->points[i].y;
+
+        }
+
+    }
+
+    void cloud_2D_projection(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out)
+    {
+
+      // Create a set of planar coefficients with X=Y=0,Z=1
+      pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+      coefficients->values.resize (4);
+      coefficients->values[0] = coefficients->values[1] = 0;
+      coefficients->values[2] = 1.0;
+      coefficients->values[3] = 0;
+
+      // Create the filtering object
+      pcl::ProjectInliers<pcl::PointXYZ> proj;
+      proj.setModelType (pcl::SACMODEL_PLANE);
+      proj.setInputCloud (cloud_in);
+      proj.setModelCoefficients (coefficients);
+      proj.filter (*cloud_out);
+
+    }
+
+    void cloud_call_back(const sensor_msgs::PointCloud2ConstPtr& cloud)
+    {
+      obstacle_find_Publish(cloud);
+
+
+    }
+
+    bool is_in_costmap(float x, float y)
+    {
+      double margin = 0.5;
+      bool out = false;
+      if ( x < ( costmap_x_size + origin_x - margin) && x > (-0.0 + origin_x + margin))
+      {
+        if ( y < (0 - origin_y - margin) && y > (-costmap_y_size - origin_y + margin) ) out = true;
+      }
+
+      return out;
+    }
+
+    bool is_on_costmap_margin(int mx,int my)
+    {
+      bool out = true;
+      int margin = 4;
+      int x_Unorm = (int) cell_x - margin;
+      int y_Unorm = (int) cell_y - margin;
+      if(mx < x_Unorm && mx > margin && my < y_Unorm && my > margin) out = false;
+      return out;
+    }
+
+    void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_2d)
+    {
+
+      int mx;
+      int my;
+
+        master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
+
+      for (size_t i = 0; i < obs_2d->points.size (); ++i)
+      {
+          //if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
+
+        master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
+        //master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+        if( !is_on_costmap_margin(mx,my) )
+          master_grid_->setCost(mx,my, LETHAL_OBSTACLE);
+
+      }
+
+      lethal_inflation();
+        // Costmap2DPublisher
+      Obstacle_pub_.publish(master_grid_->getROSmsg());
+
+    }
+
+    void cloud_to_costmap(pcl::PointCloud<pcl::PointXYZI> obs_2d)
+    {
+
+      int mx;
+      int my;
+
+        master_grid_->resetMap(0,0,cell_x-1,cell_y-1);
+        unsigned char cost;
+      for (size_t i = 0; i < obs_2d.points.size (); ++i)
+      {
+
+        master_grid_->worldToMapEnforceBounds((double) obs_2d.points[i].x,(double) obs_2d.points[i].y,mx,my); // was enforced
+        //master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
+
+        if (obs_2d.points[i].intensity == INFLATED_OBSTACLE ) cost = INFLATED_OBSTACLE;
+        else cost = LETHAL_OBSTACLE;
+        if( !is_on_costmap_margin(mx,my) )
+        master_grid_->setCost(mx,my, cost);
+
+
+
+      }
+
+
+        // Costmap2DPublisher
+
+        Obstacle_pub_.publish(master_grid_->getROSmsg());
+
+    }
+
+    void lethal_inflation() //fill the cell around the lethal obstacle
+      {
+
+          /* vector< vector<int> > matrix
+
+            0 1 2 3 4 5 6 7 8 ...
+          0	x
+          1	y
+
+        */
+        vector< vector<int> > matrix;
+        matrix.resize(WIDTH);
+        int index = -1;
+
+        for (unsigned int i=0; i < cell_x ; i++) //loop in x
+        {
+          for (unsigned int j=0; j < cell_y ; j++) //loop in y
+          {
+            if(master_grid_->getCost(i,j) == LETHAL_OBSTACLE) //find the lethal obstacle
+            {
+              index++;
+              matrix[index].resize(2);
+              matrix[index][0] = i;
+              matrix[index][1] = j;
+              //list_x_lethal.push_back(i); //fill the list with lethal obstacles
+              //list_y_lethal.push_back(j);
+            }
+          }
+        }
+
+        //loop in the list of lethal obstacles
+        for (int k=0; k < index; k++)
+        {
+          int cell_around = (int) floor(fabs(lethal_rad/costmap_res))+1;
+          int i = matrix[k][0]; //x
+          int j = matrix[k][1]; //y
+
+          for (int ii=-cell_around; ii<cell_around+1; ii++) //loop around the obstacle
+          {
+            for (int jj=-cell_around; jj<cell_around+1; jj++)
+            {
+
+              if ((i+ii) < 0) ii = std::min(-i,ii);
+                    if ((j+jj) < 0) jj = std::min(-j,jj);
+              try
+
+              {
+              if( !is_on_costmap_margin(i+ii,j+jj) )
+              master_grid_->setCost(i+ii, j+jj, LETHAL_OBSTACLE); //fill the cell around the obstacle
+              inf_inflation(i+ii,j+jj, master_grid_);
+
+              }
+
+              //continue even if exit from the grid
+
+              catch(int e)
+
+              {
+              //do nothing
+              }
+            }
+          }
+
+
+
+        }
+      }
+
+    void inf_inflation(int i,int j, costmap* grid)
+    {
+      int cell_around = (int) floor(fabs(inf_rad/costmap_res))+1;
+      unsigned char INFLATION_OBSTACLE = INFLATED_OBSTACLE;
+        for (int k=-cell_around; k<cell_around+1; k++) //loop around the lethal obstacle
+        {
+
+          for (int l=-cell_around; l<cell_around+1; l++)
+          {
+
+            if ((i+k) < 0) k = std::min(-i,k);
+            if ((i+l) < 0) l = std::min(-j,l);
+            unsigned char cost = 0;
+            if( !is_on_costmap_margin(k+i,l+j) )
+              cost = grid->getCost((unsigned int)k+i,(unsigned int)l+j);
+
+
+            if(cost != LETHAL_OBSTACLE) //if is a lethal do nothing
+            {
+              try {
+              if( !is_on_costmap_margin(i+k,j+l) )
+                   grid->setCost((unsigned int)i+k, (unsigned int)j+l, INFLATION_OBSTACLE); //fill the cell around lethal_obs
+              }
+              catch(int e)
+              {
+              //do nothing
+              }
+            }
+          }
+        }
+    }
+
+    void costmap_to_cloud()
+    {
+      double temp_x;
+      double temp_y;
+      cost_map_cloud.clear();
+      for (size_t i=0; i < cell_x + 1; i++)
+        {
+      for (size_t j=0; j < cell_y + 1; j++)
+      {
+        unsigned char cost = master_grid_->getCost(i,j);
+        if(cost == LETHAL_OBSTACLE || cost == INFLATED_OBSTACLE)
+        {
+          master_grid_->mapToWorld(i,j,temp_x,temp_y);
+
+          for (int k = -1; k < 2; k++) // -1;2
+          {
+            for (int l = -1; l < 2; l++) // -1;2
+            {
+              pcl::PointXYZI point;
+              point.z = 0.0;
+              point.x = temp_x + (float) k*costmap_res/2*0.9;
+              point.y = temp_y + (float) l*costmap_res/2*0.9;
+              point.intensity = (float) cost;
+              cost_map_cloud.points.push_back(point);
+            }
+          }
+        }
+
+      }
+       }
+
+    }
 		
 };
 
