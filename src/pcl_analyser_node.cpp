@@ -106,7 +106,8 @@ class ObstacleDetectorClass
 	ObstacleDetectorClass(ros::NodeHandle& node)
 	{
 			n_=node;
-
+      ros::NodeHandle n_pr_temp("~");
+      n_pr = n_pr_temp;
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
 
@@ -614,31 +615,92 @@ class ObstacleDetectorClass
 		
 	}
 
+  void test_lookuptable()
+  {
+    int sample_L = 13;
+    double Ts_L = 3.00;
+    int path_number;
+    PointCloudVar PC;
+    //ros::NodeHandle n_pr("~");
+    sensor_msgs::PointCloud2 PC_msg;
+    MatrixXf tra;
+    ROS_WARN("1");
+    tra.setZero( 3, sample_L);
+    VectorXf V_in(sample_L);
+    VectorXf Omega_in(sample_L);
+    Vector3f x_0,x_dot_0,x_dot_f;
+    ROS_WARN("2");
+    x_0 << 0.0,0.0,0.0;
+    x_dot_0 << 0.0,0.0,0.0;
 
+    RoverPathClass Rov(0.01, sample_L,master_grid_);
+    std::vector<double> v_vector;
+    std::vector<double> o_vector;
+    n_pr.getParam("V_1", v_vector);
+    n_pr.getParam("path_number", path_number);
+    ROS_WARN_STREAM(path_number);
+    ROS_WARN("3");
+    V_in = FromSTDvector(v_vector);
+    std::ostringstream j_no;
+    std::string temp;
+    for(int j=0;j < path_number;j++)
+    {
+      j_no.str("");
+      j_no.clear();
+      j_no << j;
+      temp = "O_" + j_no.str();
+      //ROS_WARN("String is %s", temp);
+      //std::cout << temp << "\n";
+
+      n_pr.getParam("O_"+j_no.str(), o_vector);
+
+      Omega_in = FromSTDvector(o_vector);
+      ROS_WARN("4 - loop");
+      tra = Rov.Rover_vw(V_in, Omega_in, 0.01, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
+      ROS_WARN("5 - loop");
+      PointXYZ point;
+      for(size_t i=0; i<tra.cols();i++)
+      {
+        point.x = tra(0,i);
+        point.y = tra(1,i);
+        point.z = 0.0;
+        ROS_WARN("6 - 2xloop");
+        PC.push_back(point);
+
+      }
+    }
+
+    pcl::toROSMsg(PC,PC_msg);
+    PC_msg.header.stamp = ros::Time::now();
+    PC_msg.header.frame_id = "base_link";
+    lookuppath_pub_.publish(PC_msg);
+
+  }
 	
-	void test_lookuptable()
+  void test_chassis_sim()
 	{
-		if(first_elevation_received) return;
+    if(first_elevation_received) return;
 		int sample_L = 13; 
 		double Ts_L = 3.00;
 		int path_number;
 		PointCloudVar PC;
-		ros::NodeHandle n_pr("~");
+    //ros::NodeHandle n_pr("~");
 		sensor_msgs::PointCloud2 PC_msg;
 		MatrixXf tra;
+
 		tra.setZero( 3, sample_L);
-  		VectorXf V_in(sample_L);
-  		VectorXf Omega_in(sample_L);
+    VectorXf V_in(sample_L);
+    VectorXf Omega_in(sample_L);
 		Vector3f x_0,x_dot_0,x_dot_f;
-		
 		x_0 << 0.0,0.0,0.0;
 		x_dot_0 << 0.0,0.0,0.0;
-		RoverPathClass Rov(0.0, sample_L,master_grid_,elevation_grid_);
+    RoverPathClass Rov(0.0, sample_L,master_grid_,elevation_grid_);
+
 		std::vector<double> v_vector;
 		std::vector<double> o_vector;
 		n_pr.getParam("V_1", v_vector);
 		n_pr.getParam("path_number", path_number);
-		//ROS_INFO("1");
+
 		V_in = FromSTDvector(v_vector);
 		std::ostringstream j_no;
 		std::string temp;
@@ -654,13 +716,16 @@ class ObstacleDetectorClass
 			n_pr.getParam("O_"+j_no.str(), o_vector);
 			
 			Omega_in = FromSTDvector(o_vector);
+
 			tra = Rov.Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);		
+
 			PointXYZ point;
 			for(size_t i=0; i<tra.cols();i++)
 			{
 				point.x = tra(0,i);
 				point.y = tra(1,i);
 				point.z = 0.0;
+
 				PC.push_back(point);
 			
 			}
@@ -669,7 +734,7 @@ class ObstacleDetectorClass
 		VectorXf Poses;
 		if(!first_elevation_received) //!first_elevation_received
 		{
-			Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg,ecostmap_meta);
+      Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg,ecostmap_meta);
 			ChassisPose_pub_.publish(Poses_msg);
 		}
 
@@ -922,7 +987,7 @@ class ObstacleDetectorClass
 		double height_max_default = 2.0;
 		
 		
-		ros::NodeHandle n_pr("~");
+    //ros::NodeHandle n_pr("~");
 	
 		n_pr.param("normal_threshold", normal_threshold, normal_threshold_default);
 		n_pr.param("height_threshold", height_threshold, height_threshold_default);
@@ -1063,7 +1128,7 @@ class ObstacleDetectorClass
 				first_loop = false;
 					
 			}
-		    //test_lookuptable();
+      test_lookuptable();
 			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
     			costmap_cl.header.frame_id = "base_link";
@@ -1091,7 +1156,7 @@ class ObstacleDetectorClass
 		// Node Handler
 		ros::NodeHandle n_;
 		ros::NodeHandle* n;
-		 
+     ros::NodeHandle n_pr;
 		// Subscribers
 		ros::Subscriber SubFromCloud_;
 		ros::Subscriber subFromTrackSpeed_;

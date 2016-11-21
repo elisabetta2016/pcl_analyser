@@ -169,6 +169,12 @@ MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double
     	
 	return x;  
 }
+/*
+void RoverPathClass::Ctrl_sim()
+{
+  float tracking_precision = 0.01; //TBD
+
+}*/
 	
 void RoverPathClass::traj_to_cloud(MatrixXf tra)
 {
