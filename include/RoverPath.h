@@ -11,7 +11,7 @@
 
 //Messages
 #include <geometry_msgs/PoseArray.h>
-
+#include <nav_msgs/Path.h>
 // Eigen
 #include <Eigen/Dense> 
 
@@ -21,6 +21,11 @@
 #include "costmap.h"
 
 #include<hector_elevation_visualization/EcostmapMetaData.h>
+
+//typedefs
+  typedef pcl::PointXYZ PointXYZ;
+  typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
+  typedef pcl::PointCloud<pcl::PointXYZ> PointCloudVar;
 
 using namespace Eigen;
 
@@ -47,7 +52,7 @@ struct CELL{
 
 class RoverPathClass
 {
-	public:
+public:
 		
 	RoverPathClass(double b_,int sample_, costmap* grid_);
 	RoverPathClass(double b_,int sample_, costmap* obs_grid_, costmap* e_grid_);
@@ -60,6 +65,8 @@ class RoverPathClass
 	void update_costmap(costmap* grid_);
 	
 	void traj_to_cloud(MatrixXf tra);
+
+  void path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle* nPtr);
 
 	void Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
@@ -74,7 +81,7 @@ class RoverPathClass
 	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f);
 	
 	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found);
-	protected:
+protected:
 	
 	costmap* master_grid_;
 	costmap* elevation_grid_;
@@ -92,14 +99,18 @@ class RoverPathClass
 	double Cost_gain;
 	double Speed_gain;
 	int particle_no;
-  	int iteration;
-  	double Travel_cost_inc;
+  int iteration;
+  double Travel_cost_inc;
 	double Lethal_cost_inc;
 	double Inf_cost_inc;
-  	float path_z_inc;
+  float path_z_inc;
+
+  //lookupTable
+  std::vector<nav_msgs::Path> path_vector;
 
 	private:
 	bool is_in_costmap(float x, float y, costmap* grid);
-	
+  nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id);
+  VectorXf EigenVecFromSTDvec(std::vector<double> input);
 };
 #endif 

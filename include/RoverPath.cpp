@@ -34,6 +34,116 @@ RoverPathClass::~RoverPathClass()
 {
 
 }*/
+VectorXf RoverPathClass::EigenVecFromSTDvec(std::vector<double> input)
+{
+  VectorXf out((int)input.size());
+  for (size_t i = 0; i < input.size(); i++)
+  {
+    out(i) = input[i];
+  }
+  return out;
+}
+
+nav_msgs::Path RoverPathClass::PathFromEigenMat(MatrixXf in, std::string frame_id)
+{
+    nav_msgs::Path out;
+    int length = in.cols();
+    out.header.stamp = ros::Time::now();
+    out.header.frame_id = frame_id;
+    out.poses = std::vector<geometry_msgs::PoseStamped> (length);
+    for(int i=0;i< length;i++)
+    {
+      out.poses[i].pose.position.x = in(0,i);
+      out.poses[i].pose.position.y = in(1,i);
+      out.poses[i].pose.position.z = 0.0;
+    }
+    return out;
+}
+
+void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle* nPtr)
+{
+  double Ts_L = 3.00;
+  int path_number;
+  PointCloudVar PC;
+
+  sensor_msgs::PointCloud2 PC_msg;
+  MatrixXf tra;
+
+  tra.setZero( 3, sample);
+  VectorXf V_in(sample);
+  VectorXf Omega_in(sample);
+  Vector3f x_0,x_dot_0,x_dot_f;
+
+  x_0 << 0.0,0.0,0.0;
+  x_dot_0 << 0.0,0.0,0.0;
+
+  //RoverPathClass Rov(0.0, sample_L,master_grid_);
+  std::vector<double> v_vector;
+  std::vector<double> o_vector;
+  nPtr->getParam("V_1", v_vector);
+  nPtr->getParam("path_number", path_number);
+
+  V_in = EigenVecFromSTDvec(v_vector);
+  std::ostringstream j_no;
+  std::string temp;
+
+  nav_msgs::Path temp_path;
+  for(int j=0;j < path_number;j++)
+  {
+    j_no.str("");
+    j_no.clear();
+    j_no << j;
+    temp = "O_" + j_no.str();
+    //ROS_WARN("String is %s", temp);
+    //std::cout << temp << "\n";
+
+    nPtr->getParam("O_"+j_no.str(), o_vector);
+
+    Omega_in = EigenVecFromSTDvec(o_vector);
+
+    tra = Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+    temp_path = PathFromEigenMat(tra, "base_link");
+    path_vector.push_back(temp_path);
+
+
+    PointXYZ point;
+    for(size_t i=0; i<tra.cols();i++)
+    {
+      point.x = tra(0,i);
+      point.y = tra(1,i);
+      point.z = 0.0;
+
+      PC.push_back(point);
+
+    }
+
+    // -Omega
+    tra.setZero();
+    tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+
+    temp_path = PathFromEigenMat(tra, "base_link");
+    path_vector.push_back(temp_path);
+
+    for(size_t i=0; i<tra.cols();i++)
+    {
+      point.x = tra(0,i);
+      point.y = tra(1,i);
+      point.z = 0.0;
+
+      PC.push_back(point);
+
+    }
+
+  }
+
+  pcl::toROSMsg(PC,PC_msg);
+  PC_msg.header.stamp = ros::Time::now();
+  PC_msg.header.frame_id = "base_link";
+  PCpubPtr->publish(PC_msg);
+
+
+}
+
 void RoverPathClass::set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_)
 {
 	Travel_cost_inc = Travel_cost_inc_;
@@ -111,7 +221,7 @@ PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap *grid)
 		}
 	}
 	return cost;
-	}
+}
 		
 MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f)
 {
