@@ -286,6 +286,15 @@ class ObstacleDetectorClass
 		
 	}
 
+  void test_lookuptable_class()
+  {
+    int sample_L = 13;
+
+    RoverPathClass Rov(0.0, sample_L,master_grid_);
+    Rov.path_lookup_table(&lookuppath_pub_, &n_pr);
+
+  }
+
   void test_lookuptable()
   {
     int sample_L = 13;
@@ -733,7 +742,7 @@ class ObstacleDetectorClass
 				first_loop = false;
 					
 			}
-      test_lookuptable();
+      test_lookuptable_class();
 			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
     			costmap_cl.header.frame_id = "base_link";

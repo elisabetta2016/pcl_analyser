@@ -11,6 +11,7 @@
 
 //Messages
 #include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/Pose.h>
 #include <nav_msgs/Path.h>
 // Eigen
 #include <Eigen/Dense> 
@@ -56,6 +57,7 @@ public:
 		
 	RoverPathClass(double b_,int sample_, costmap* grid_);
 	RoverPathClass(double b_,int sample_, costmap* obs_grid_, costmap* e_grid_);
+
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
 	void set_pso_params(double pso_inertia_in,double c_1_in,double c_2_in,double Goal_gain_in,double Cost_gain_in,double Speed_gain_in,int particle_no_,int iteration_);
@@ -67,6 +69,10 @@ public:
 	void traj_to_cloud(MatrixXf tra);
 
   void path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle* nPtr);
+
+  void LTcleanup(geometry_msgs::Pose Goal);
+
+  bool is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
 
 	void Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
@@ -110,6 +116,7 @@ protected:
 
 	private:
 	bool is_in_costmap(float x, float y, costmap* grid);
+  bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
   nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id);
   VectorXf EigenVecFromSTDvec(std::vector<double> input);
 };

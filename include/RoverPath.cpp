@@ -144,6 +144,42 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
 
 }
 
+void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal)
+{
+  size_t path_no = path_vector.size();
+  std::vector <nav_msgs::Path> temp_path_vector;
+  for(size_t i;i<path_no;i++)
+  {//loop all the paths
+    for(int j=0; j < sample; j++)
+    {// loop the samples
+        if(!is_occluded_point(path_vector[i].poses[j].pose,Goal))
+          temp_path_vector.push_back(path_vector[i]);
+    }
+  }
+  path_vector = temp_path_vector;
+}
+
+bool RoverPathClass::is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal)
+{
+  double m = (Goal.position.y - Pose.position.y)/(Goal.position.x - Pose.position.x);
+  //Special case to be considered m = 0, m = inf
+  double x_increment = (Goal.position.x - Pose.position.x)/(double)sample;
+  bool out = false;
+  MatrixXf path_PG;
+
+  path_PG.setZero(2,sample);
+  // y = m*(x - goal.x)+ goal.y
+  for(int i = 0;i< sample;i++)
+  {
+    path_PG(0,i) = Pose.position.x + x_increment*i;  //x_element
+    path_PG(1,i) = m*(path_PG(0,i) - Goal.position.x)+Goal.position.y; //y_element
+  }
+  PATH_COST Path_PG_cost = Cost_of_path(path_PG, master_grid_);
+  if (Path_PG_cost.Lethal_cost > 100) out = true;
+  return out;
+}
+
+
 void RoverPathClass::set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_)
 {
 	Travel_cost_inc = Travel_cost_inc_;
