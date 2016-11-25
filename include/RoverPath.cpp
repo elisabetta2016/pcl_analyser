@@ -106,17 +106,6 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
     path_vector.push_back(temp_path);
 
 
-    PointXYZ point;
-    for(size_t i=0; i<tra.cols();i++)
-    {
-      point.x = tra(0,i);
-      point.y = tra(1,i);
-      point.z = 0.0;
-
-      PC.push_back(point);
-
-    }
-
     // -Omega
     tra.setZero();
     tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
@@ -124,17 +113,31 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
     temp_path = PathFromEigenMat(tra, "base_link");
     path_vector.push_back(temp_path);
 
-    for(size_t i=0; i<tra.cols();i++)
+
+  }
+
+
+  PointXYZ point,g;
+  geometry_msgs::Pose goal;
+  goal.position.x = 3.0;
+  goal.position.y = -3.0;
+  goal.position.z = 1.0;
+  g.x = goal.position.x;
+  g.y = goal.position.y;
+  g.z = goal.position.z;
+  LTcleanup(goal);
+  for (size_t i=0; i<path_vector.size();i++)
+  {
+    for(size_t j=0; j< path_vector[i].poses.size();j++)
     {
-      point.x = tra(0,i);
-      point.y = tra(1,i);
+      point.x = path_vector[i].poses[j].pose.position.x;
+      point.y = path_vector[i].poses[j].pose.position.y;
       point.z = 0.0;
 
       PC.push_back(point);
-
     }
-
   }
+  PC.push_back(g);
 
   pcl::toROSMsg(PC,PC_msg);
   PC_msg.header.stamp = ros::Time::now();
@@ -148,13 +151,19 @@ void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal)
 {
   size_t path_no = path_vector.size();
   std::vector <nav_msgs::Path> temp_path_vector;
-  for(size_t i;i<path_no;i++)
+  bool occluded_path = false;
+  for(size_t i=0;i<path_no;i++)
   {//loop all the paths
     for(int j=0; j < sample; j++)
     {// loop the samples
-        if(!is_occluded_point(path_vector[i].poses[j].pose,Goal))
-          temp_path_vector.push_back(path_vector[i]);
+        if(is_occluded_point(path_vector[i].poses[j].pose,Goal))
+        {
+          occluded_path = true;
+          break;
+        }
     }
+    if (!occluded_path) temp_path_vector.push_back(path_vector[i]);
+    occluded_path = false;
   }
   path_vector = temp_path_vector;
 }
@@ -169,13 +178,28 @@ bool RoverPathClass::is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::P
 
   path_PG.setZero(2,sample);
   // y = m*(x - goal.x)+ goal.y
+  PointXYZ point;
+
   for(int i = 0;i< sample;i++)
   {
     path_PG(0,i) = Pose.position.x + x_increment*i;  //x_element
     path_PG(1,i) = m*(path_PG(0,i) - Goal.position.x)+Goal.position.y; //y_element
+    point.x = path_PG(0,i);
+    point.y = path_PG(1,i);
+    point.z = -1.0;
+
   }
   PATH_COST Path_PG_cost = Cost_of_path(path_PG, master_grid_);
-  if (Path_PG_cost.Lethal_cost > 100) out = true;
+  int a1 = Path_PG_cost.Lethal_cost;
+  int a2 = Path_PG_cost.Inf_cost;
+  bool a3 = Path_PG_cost.collision;
+  if (Path_PG_cost.collision)
+  {
+    //ROS_INFO("Collision!!!!");
+    out = true;
+  }
+  else
+    //ROS_WARN("Safe!!!");
   return out;
 }
 
@@ -242,14 +266,16 @@ PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap *grid)
 		if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
 		{
 			curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
-			//ROS_ERROR("curr_cell 1:%f 2:%f 3:%d 4:%d",path(0,i),path(1,i),curr_cell.x,curr_cell.y);
-			if (curr_cell.c == LETHAL_OBSTACLE)
+      //ROS_ERROR("current_cell.c %d",curr_cell.c);
+      if ((int)curr_cell.c == 100)//LETHAL_OBSTACLE
 			{
+        //ROS_INFO("LETHAL !");
 				cost.Lethal_cost += Lethal_cost_inc;
 				cost.collision = true;
 			}
-			if (curr_cell.c == INFLATED_OBSTACLE)
+      if ((int)curr_cell.c == 90)//INFLATED_OBSTACLE
 			{
+        //ROS_INFO("INFLATED !");
 				cost.Inf_cost += Inf_cost_inc; 
 			}
 			cost.Travel_cost +=  Travel_cost_inc;

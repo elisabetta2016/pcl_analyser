@@ -291,6 +291,7 @@ class ObstacleDetectorClass
     int sample_L = 13;
 
     RoverPathClass Rov(0.0, sample_L,master_grid_);
+    //ROS_WARN("resolution: %f ", master_grid_->getResolution());
     Rov.path_lookup_table(&lookuppath_pub_, &n_pr);
 
   }

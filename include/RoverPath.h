@@ -23,6 +23,7 @@
 
 #include<hector_elevation_visualization/EcostmapMetaData.h>
 
+
 //typedefs
   typedef pcl::PointXYZ PointXYZ;
   typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
