@@ -120,5 +120,8 @@ protected:
   bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
   nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id);
   VectorXf EigenVecFromSTDvec(std::vector<double> input);
+  nav_msgs::Path find_init_candidate(geometry_msgs::Pose Goal);
+  float pose_distance_2d(geometry_msgs::Pose a,geometry_msgs::Pose b);
+  void shortenLTpaths(geometry_msgs::Pose Goal);
 };
 #endif 

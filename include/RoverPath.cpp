@@ -119,13 +119,16 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
 
   PointXYZ point,g;
   geometry_msgs::Pose goal;
-  goal.position.x = 3.0;
-  goal.position.y = -3.0;
-  goal.position.z = 1.0;
+  goal.position.x = 1.0;
+  goal.position.y = -0.0;
+  goal.position.z = 0.5;
   g.x = goal.position.x;
   g.y = goal.position.y;
   g.z = goal.position.z;
+  shortenLTpaths(goal);
   LTcleanup(goal);
+
+  //  publish cleaned lookup_table
   for (size_t i=0; i<path_vector.size();i++)
   {
     for(size_t j=0; j< path_vector[i].poses.size();j++)
@@ -137,6 +140,17 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
       PC.push_back(point);
     }
   }
+  //publish lookup table candidate
+  // /*
+  nav_msgs::Path candidate = find_init_candidate(goal);
+  for (size_t i=0; i<candidate.poses.size();i++)
+  {
+     point.x = candidate.poses[i].pose.position.x;
+     point.y = candidate.poses[i].pose.position.y;
+     point.z = 0.1;
+     PC.push_back(point);
+  }
+  // */
   PC.push_back(g);
 
   pcl::toROSMsg(PC,PC_msg);
@@ -147,14 +161,36 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
 
 }
 
-void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal)
+void RoverPathClass::shortenLTpaths(geometry_msgs::Pose Goal)
+{
+  size_t path_no = path_vector.size();
+
+  geometry_msgs::Pose z;
+  z.position.x = 0;
+  z.position.y = 0;
+  float goal_dist = pose_distance_2d(z,Goal);
+  for(size_t i=0;i<path_no;i++)
+  {//loop all the paths
+    for(int j=0; j < path_vector[i].poses.size(); j++)
+    {// loop the samples
+        if(pose_distance_2d(path_vector[i].poses[j].pose,z) > goal_dist)
+        {
+          path_vector[i].poses.erase(path_vector[i].poses.begin()+j,path_vector[i].poses.end()); //eliminate samples farther than goal
+          break;
+        }
+    }
+  }
+
+}
+
+void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal) //Cleaning path lookuptable
 {
   size_t path_no = path_vector.size();
   std::vector <nav_msgs::Path> temp_path_vector;
   bool occluded_path = false;
   for(size_t i=0;i<path_no;i++)
   {//loop all the paths
-    for(int j=0; j < sample; j++)
+    for(int j=0; j < path_vector[i].poses.size(); j++)
     {// loop the samples
         if(is_occluded_point(path_vector[i].poses[j].pose,Goal))
         {
@@ -166,6 +202,39 @@ void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal)
     occluded_path = false;
   }
   path_vector = temp_path_vector;
+}
+
+nav_msgs::Path RoverPathClass::find_init_candidate(geometry_msgs::Pose Goal)
+{
+  size_t path_no = path_vector.size();
+  float best_val = 1000000.0;
+  float curr_val;
+  size_t best_i,best_j;
+  for(size_t i=0;i<path_no;i++) //finding the sample among the paths that is closest to the goal
+  {
+    for(size_t j=0;j < path_vector[i].poses.size();j++)
+    {
+        curr_val = pose_distance_2d(Goal,path_vector[i].poses[j].pose);
+        if( curr_val < best_val)
+        {
+          best_i = i;
+          best_j = j;
+          best_val = curr_val;
+        }
+    }
+  }
+  nav_msgs::Path result;
+  for(size_t jj =0;jj< best_j; jj++) //result path is a path shortened to the best sample
+  {
+    result.poses.push_back(path_vector[best_i].poses[jj]);
+  }
+
+  return result;
+}
+
+float RoverPathClass::pose_distance_2d(geometry_msgs::Pose a,geometry_msgs::Pose b)
+{
+   return sqrt(pow(a.position.x-b.position.x , 2) + pow(a.position.y-b.position.y,2));
 }
 
 bool RoverPathClass::is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal)
