@@ -6,24 +6,24 @@ using costmap_2d::LETHAL_OBSTACLE;
 
 
 		
-RoverPathClass::RoverPathClass(double b_,int sample_, costmap *grid_)
+RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, costmap *grid_)
 {
 	Rover_b = b_;
 	sample = sample_;
 	master_grid_ = grid_;
-	
+  node_Ptr = nPtr;
 	set_pso_params_default();
 	Travel_cost_inc = 0.0;
 	Lethal_cost_inc = 10.0;
 	Inf_cost_inc = 3.0;
 }
-RoverPathClass::RoverPathClass(double b_,int sample_, costmap *obs_grid_, costmap *e_grid_)
+RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, costmap *obs_grid_, costmap *e_grid_)
 {
 	Rover_b = b_;
 	sample = sample_;
 	master_grid_ = obs_grid_;
 	elevation_grid_ = e_grid_;
-
+  node_Ptr = nPtr;
 	set_pso_params_default();
 	Travel_cost_inc = 0.0;
 	Lethal_cost_inc = 10.0;
@@ -60,7 +60,7 @@ nav_msgs::Path RoverPathClass::PathFromEigenMat(MatrixXf in, std::string frame_i
     return out;
 }
 
-void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle* nPtr)
+void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr)
 {
   double Ts_L = 3.00;
   int path_number;
@@ -80,8 +80,8 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
   //RoverPathClass Rov(0.0, sample_L,master_grid_);
   std::vector<double> v_vector;
   std::vector<double> o_vector;
-  nPtr->getParam("V_1", v_vector);
-  nPtr->getParam("path_number", path_number);
+  node_Ptr->getParam("V_1", v_vector);
+  node_Ptr->getParam("path_number", path_number);
 
   V_in = EigenVecFromSTDvec(v_vector);
   std::ostringstream j_no;
@@ -97,7 +97,7 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
     //ROS_WARN("String is %s", temp);
     //std::cout << temp << "\n";
 
-    nPtr->getParam("O_"+j_no.str(), o_vector);
+    node_Ptr->getParam("O_"+j_no.str(), o_vector);
 
     Omega_in = EigenVecFromSTDvec(o_vector);
 
@@ -159,6 +159,61 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle
   PCpubPtr->publish(PC_msg);
 
 
+}
+
+void RoverPathClass::path_lookup_table(geometry_msgs::Pose goal)
+{
+  double Ts_L = 3.00;
+  int path_number;
+  MatrixXf tra;
+
+  tra.setZero( 3, sample);
+  VectorXf V_in(sample);
+  VectorXf Omega_in(sample);
+  Vector3f x_0,x_dot_0,x_dot_f;
+
+  x_0 << 0.0,0.0,0.0;
+  x_dot_0 << 0.0,0.0,0.0;
+
+  //RoverPathClass Rov(0.0, sample_L,master_grid_);
+  std::vector<double> v_vector;
+  std::vector<double> o_vector;
+  node_Ptr->getParam("V_1", v_vector);
+  node_Ptr->getParam("path_number", path_number);
+
+  V_in = EigenVecFromSTDvec(v_vector);
+  std::ostringstream j_no;
+  std::string temp;
+
+  nav_msgs::Path temp_path;
+  for(int j=0;j < path_number;j++)
+  {
+    j_no.str("");
+    j_no.clear();
+    j_no << j;
+    temp = "O_" + j_no.str();
+    //ROS_WARN("String is %s", temp);
+    //std::cout << temp << "\n";
+
+    node_Ptr->getParam("O_"+j_no.str(), o_vector);
+
+    Omega_in = EigenVecFromSTDvec(o_vector);
+
+    tra = Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+    temp_path = PathFromEigenMat(tra, "base_link");
+    path_vector.push_back(temp_path);
+
+
+    // -Omega
+    tra.setZero();
+    tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+
+    temp_path = PathFromEigenMat(tra, "base_link");
+    path_vector.push_back(temp_path);
+  }
+
+  shortenLTpaths(goal);
+  LTcleanup(goal);
 }
 
 void RoverPathClass::shortenLTpaths(geometry_msgs::Pose Goal)
@@ -603,9 +658,9 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	       n Particle and m piece
 	| v11 v12 ...particle N.O. ... v1n|
 	| w11 w12 ...particle N.O. ... w1n|
-	|	        ...	          |
-	|	     Piece N.O.	          | 
-	|	        ...	          |
+  |	        ...	                    |
+  |	     Piece N.O.	                |
+  |	        ...	                    |
 	| vmn vmn ...particle N.O. ... vmn|
 	| wm1 wm2 ...particle N.O. ... wmn|
 	*/
@@ -616,18 +671,13 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	VectorXf x_best(2*piece_no);
 	VectorXf G(2*piece_no);
 	MatrixXf v;  			//particle_increment
-   	MatrixXf output_tra;
-   	output_tra.setZero(3,sample);
-   	
-   	
+  MatrixXf output_tra;
+  output_tra.setZero(3,sample);
+   	 	
 	float G_cost = 1.0/0.0;
 	float x_best_cost = 1.0/0.0;
-	
-	
-	
-	
-   
-        // Init particles Start
+	   
+  // Init particles Start
 	x.setOnes(2*piece_no,particle_no);
 	
 	
@@ -638,30 +688,27 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 		i++;
 		x(i,0) = V_curr_c(1);
 	}
-	
-	
-	
+		
 	//ROS_INFO_STREAM("V_curr_c is -------->  "  << V_curr_c);
 
 	float rand_v;
 	float rand_w;
 	for(size_t i=1;i < x.cols();i++)
 	{
-	    for(size_t j=0; j< 2*piece_no ; j++)
-	    {
-		rand_v = ((float) (rand() % 40))/100 + 0.8;
-		rand_w  = ((float) (rand() % 200))/100 -1.0;
-		x(j,i)  = rand_v * V_curr_c(0); //fixed linear speed
-		j++;
-		x(j,i)  = rand_w * omega_x;
-	    }
+     for(size_t j=0; j< 2*piece_no ; j++)
+     {
+        rand_v = ((float) (rand() % 40))/100 + 0.8;
+        rand_w  = ((float) (rand() % 200))/100 -1.0;
+        x(j,i)  = rand_v * V_curr_c(0); //fixed linear speed
+        j++;
+        x(j,i)  = rand_w * omega_x;
+     }
 	}
 	
 	v.setZero(2*piece_no,x.cols());
-	
 
 	// Init particle End
-	       
+
 	if(demo_) ROS_INFO("Initial particle");
 	if(demo_) std::cout << x << "\n";
 
@@ -670,47 +717,46 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	
 	for(size_t i=0;i< 2*piece_no; i++)
 	{
-	G(i) = x(i,0);
+     G(i) = x(i,0);
 	}
-	
 	
 	x_best = G;
   		
+  // Assuming zero speed and zero position, being on the origin
+  Vector3f x_0;
+  x_0 << 0.0, 0.0, 0.0; //laser_dist, 0.0, 0.0;
+  Vector3f x_dot_0;
+  x_dot_0 << 0.0, 0.0, 0.0;
   	
-  	Vector3f x_0;
-  	x_0 << 0.0, 0.0, 0.0; //laser_dist, 0.0, 0.0;
-  	Vector3f x_dot_0;
-  	x_dot_0 << 0.0, 0.0, 0.0;
+  //outputs
+  Vector3f x_dot_f;
+  VectorXf V_in;
+  VectorXf Omega_in;
+  MatrixXf tra;
   	
-  	//outputs
-  	Vector3f x_dot_f;
-  	VectorXf V_in;
-  	VectorXf Omega_in;
-  	MatrixXf tra;
+  V_in.setOnes(sample);
+  Omega_in.setOnes(sample);
   	
-  	V_in.setOnes(sample);
-  	Omega_in.setOnes(sample);
-  	
-  	path_z_inc = 0.0;
+  path_z_inc = 0.0;
     	
 	for (size_t k = 0; k < iteration; k++)
 	{
 		
     		
-    		MatrixXf tra;
+    MatrixXf tra;
 		tra.setZero(3,sample);
 		for(size_t i=0; i < particle_no; i++)
 		{
+      //Defining random coeffs of the PSO
 			float r_1  = ((float) (rand() % 200))/100 -1.0;
 			float r_2  = ((float) (rand() % 200))/100 -1.0;
 		
 		
-			//first part of trajectory: tra_0
-			
+			//first part of trajectory: tra_0			
 			int sub_sample = floor(V_in.size()/piece_no);
 			size_t row_it = 0;
 			for(size_t jj=0;jj < V_in.size() ; jj++)
-			{       //                          first_iteration    in case sample % piece_no is not 0                
+      {       //      first_iteration    in case sample % piece_no is not 0
 				if ( (jj%sub_sample) == 0  &&    jj != 0 &&    (sub_sample*piece_no - row_it) > 1 ) row_it = row_it+2;
 				V_in(jj)     = x(row_it,i);
 				Omega_in(jj) = x(row_it+1,i);
@@ -728,8 +774,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 			tra_tail(1) = tra(1,tra.cols()-1);
 			tra_tail(2) = 0;
 			if(demo_) ROS_WARN_STREAM_ONCE("tra length  " << tra.cols() << "   tra_tail :  " << tra_tail);
-			
-			
+						
 			//Calculating the cost of trajectory
 			PATH_COST cost = Cost_of_path(tra, master_grid_);
 			
@@ -741,19 +786,20 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 			float Ob_func_1 = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
 			float Ob_func_2 = (cost.Lethal_cost + cost.Inf_cost);				     	     //path cost
 			float Ob_func_3 = fabs(V_curr_c(0) - prop_speed);			      		     //speed effect
-			
-			float Ob_func = Goal_gain *Ob_func_1 + Cost_gain *Ob_func_2 + Speed_gain * Ob_func_3;
+      float Ob_func = Goal_gain *Ob_func_1 + Cost_gain *Ob_func_2 + Speed_gain * Ob_func_3;
 				      
 			if(demo_) ROS_ERROR("goal distance: %f, path cost: %f, speed different:%f",Ob_func_1,Ob_func_2,Ob_func_3);
 			if(demo_) ROS_INFO("LETHAL COST: %f",cost.Lethal_cost);		      
 			if(demo_) ROS_INFO("Ob_fun: %f",Ob_func);
-				      
+
+      //Best particle in the current iteration
 			if (Ob_func < x_best_cost)
 			{
 				x_best_cost = Ob_func;
 				for (size_t jj=0; jj < x.rows();jj++) x_best(jj) = x(jj,i);
 				if(demo_) ROS_INFO("new value for x_best_cost");	
 			}
+      //Best absolute solution
 			if (Ob_func < G_cost)
 			{
 				G_cost = Ob_func;
@@ -770,18 +816,15 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 			
 			for (size_t jj=0; jj < x.rows();jj++)
 				v(jj,i) = pso_inertia * v(jj,i) + c_1 * r_1 * (x_best(jj) - x(jj,i)) + c_2 * r_2 * (G(jj) - x(jj,i));
-			
-			
-		
+
 		}
 		x = x+v;
 			
 	}
     	
 	output = G;
-	ROS_INFO_STREAM("best particle" << "\n" << G);
-	return output_tra;
-    
+  if(demo_) ROS_INFO_STREAM("best particle" << "\n" << G);
+	return output_tra;    
 }
 //Private member functions
 bool RoverPathClass::is_in_costmap(float x, float y, costmap *grid)

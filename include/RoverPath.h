@@ -56,8 +56,8 @@ class RoverPathClass
 {
 public:
 		
-	RoverPathClass(double b_,int sample_, costmap* grid_);
-	RoverPathClass(double b_,int sample_, costmap* obs_grid_, costmap* e_grid_);
+  RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* grid_);
+  RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* obs_grid_, costmap* e_grid_);
 
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
@@ -69,7 +69,7 @@ public:
 	
 	void traj_to_cloud(MatrixXf tra);
 
-  void path_lookup_table(ros::Publisher* PCpubPtr, ros::NodeHandle* nPtr);
+  void path_lookup_table(ros::Publisher* PCpubPtr);
 
   void LTcleanup(geometry_msgs::Pose Goal);
 
@@ -89,7 +89,7 @@ public:
 	
 	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found);
 protected:
-	
+  ros::NodeHandle* node_Ptr;
 	costmap* master_grid_;
 	costmap* elevation_grid_;
 	//RoverSim params
@@ -117,11 +117,17 @@ protected:
 
 	private:
 	bool is_in_costmap(float x, float y, costmap* grid);
+  void path_lookup_table(geometry_msgs::Pose goal);
   bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
+
   nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id);
+
   VectorXf EigenVecFromSTDvec(std::vector<double> input);
+
   nav_msgs::Path find_init_candidate(geometry_msgs::Pose Goal);
+
   float pose_distance_2d(geometry_msgs::Pose a,geometry_msgs::Pose b);
+
   void shortenLTpaths(geometry_msgs::Pose Goal);
 };
 #endif 
