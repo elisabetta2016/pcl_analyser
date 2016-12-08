@@ -115,6 +115,7 @@ protected:
 	double Lethal_cost_inc;
 	double Inf_cost_inc;
   float path_z_inc;
+  double Ts_global;
   PathAdr CPinfo; //Candidate path information
 
   //lookupTable

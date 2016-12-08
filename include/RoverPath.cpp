@@ -31,6 +31,7 @@ void RoverPathClass::init_()
   Inf_cost_inc = 3.0;
   CPinfo.sample_it = 0;
   CPinfo.path_it = 0;
+  Ts_global = 3.00;
   //CPinfo.bad_it = {};
 
 }
@@ -68,7 +69,7 @@ nav_msgs::Path RoverPathClass::PathFromEigenMat(MatrixXf in, std::string frame_i
 
 void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr,geometry_msgs::Pose goal)
 {
-  double Ts_L = 3.00;
+  double Ts_L = Ts_global;
   int path_number;
   PointCloudVar PC;
 
@@ -165,7 +166,7 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr,geometry_msgs::P
 
 void RoverPathClass::path_lookup_table(geometry_msgs::Pose goal)
 {
-  double Ts_L = 3.00;
+  double Ts_L = Ts_global;
   int path_number;
   MatrixXf tra;
 
@@ -850,7 +851,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2
 			
 		 	
 			//simulating the trajectory
-			tra = Rover_vw(V_in, Omega_in, b, Ts,x_0,x_dot_0 , sample,x_dot_f);
+      tra = Rover_vw(V_in, Omega_in, b, piece_no *Ts_global/sample ,x_0,x_dot_0 , sample,x_dot_f);
 			traj_to_cloud(tra);
 							
 			Vector3f tra_tail;
