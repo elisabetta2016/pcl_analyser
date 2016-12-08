@@ -12,10 +12,7 @@ RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, cost
 	sample = sample_;
 	master_grid_ = grid_;
   node_Ptr = nPtr;
-	set_pso_params_default();
-	Travel_cost_inc = 0.0;
-	Lethal_cost_inc = 10.0;
-	Inf_cost_inc = 3.0;
+  init_();
 }
 RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, costmap *obs_grid_, costmap *e_grid_)
 {
@@ -24,11 +21,20 @@ RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, cost
 	master_grid_ = obs_grid_;
 	elevation_grid_ = e_grid_;
   node_Ptr = nPtr;
-	set_pso_params_default();
-	Travel_cost_inc = 0.0;
-	Lethal_cost_inc = 10.0;
-	Inf_cost_inc = 3.0;
+  init_();
 }
+void RoverPathClass::init_()
+{
+  set_pso_params_default();
+  Travel_cost_inc = 0.0;
+  Lethal_cost_inc = 10.0;
+  Inf_cost_inc = 3.0;
+  CPinfo.sample_it = 0;
+  CPinfo.path_it = 0;
+  //CPinfo.bad_it = {};
+
+}
+
 /*
 RoverPathClass::~RoverPathClass()	
 {
@@ -60,7 +66,7 @@ nav_msgs::Path RoverPathClass::PathFromEigenMat(MatrixXf in, std::string frame_i
     return out;
 }
 
-void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr)
+void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr,geometry_msgs::Pose goal)
 {
   double Ts_L = 3.00;
   int path_number;
@@ -107,24 +113,20 @@ void RoverPathClass::path_lookup_table(ros::Publisher* PCpubPtr)
 
 
     // -Omega
-    tra.setZero();
-    tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+    //tra.setZero();
+    //tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
 
-    temp_path = PathFromEigenMat(tra, "base_link");
-    path_vector.push_back(temp_path);
+    //temp_path = PathFromEigenMat(tra, "base_link");
+    //path_vector.push_back(temp_path);
 
 
   }
 
 
   PointXYZ point,g;
-  geometry_msgs::Pose goal;
-  goal.position.x = 1.0;
-  goal.position.y = -0.0;
-  goal.position.z = 0.5;
   g.x = goal.position.x;
   g.y = goal.position.y;
-  g.z = goal.position.z;
+  g.z = 0.5;
   shortenLTpaths(goal);
   LTcleanup(goal);
 
@@ -178,8 +180,10 @@ void RoverPathClass::path_lookup_table(geometry_msgs::Pose goal)
   //RoverPathClass Rov(0.0, sample_L,master_grid_);
   std::vector<double> v_vector;
   std::vector<double> o_vector;
-  node_Ptr->getParam("V_1", v_vector);
-  node_Ptr->getParam("path_number", path_number);
+  if(!node_Ptr->getParam("V_1", v_vector))
+      ROS_FATAL("Lookup table not found - V_1");
+  if(!node_Ptr->getParam("path_number", path_number))
+      ROS_FATAL("Lookup table not found");
 
   V_in = EigenVecFromSTDvec(v_vector);
   std::ostringstream j_no;
@@ -205,11 +209,11 @@ void RoverPathClass::path_lookup_table(geometry_msgs::Pose goal)
 
 
     // -Omega
-    tra.setZero();
-    tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
+    //tra.setZero();
+    //tra = Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample, x_dot_f);
 
-    temp_path = PathFromEigenMat(tra, "base_link");
-    path_vector.push_back(temp_path);
+    //temp_path = PathFromEigenMat(tra, "base_link");
+    //path_vector.push_back(temp_path);
   }
 
   shortenLTpaths(goal);
@@ -253,7 +257,10 @@ void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal) //Cleaning path lookupt
           break;
         }
     }
-    if (!occluded_path) temp_path_vector.push_back(path_vector[i]);
+    if (!occluded_path)
+      temp_path_vector.push_back(path_vector[i]);
+    if (occluded_path)
+      CPinfo.bad_it.push_back(i); // save the address of occluded paths
     occluded_path = false;
   }
   path_vector = temp_path_vector;
@@ -261,10 +268,17 @@ void RoverPathClass::LTcleanup(geometry_msgs::Pose Goal) //Cleaning path lookupt
 
 nav_msgs::Path RoverPathClass::find_init_candidate(geometry_msgs::Pose Goal)
 {
-  size_t path_no = path_vector.size();
+  nav_msgs::Path result;
   float best_val = 1000000.0;
   float curr_val;
   size_t best_i,best_j;
+  path_lookup_table(Goal); // initialize the lookup table
+  size_t path_no = path_vector.size();
+  if(path_vector.size() == 0)
+  {
+    ROS_ERROR("Lookup table is empty");
+    return result;
+  }
   for(size_t i=0;i<path_no;i++) //finding the sample among the paths that is closest to the goal
   {
     for(size_t j=0;j < path_vector[i].poses.size();j++)
@@ -278,11 +292,15 @@ nav_msgs::Path RoverPathClass::find_init_candidate(geometry_msgs::Pose Goal)
         }
     }
   }
-  nav_msgs::Path result;
+
   for(size_t jj =0;jj< best_j; jj++) //result path is a path shortened to the best sample
   {
     result.poses.push_back(path_vector[best_i].poses[jj]);
   }
+  CPinfo.sample_it = best_j;
+  CPinfo.path_it = best_i;
+  for(size_t m=0; m < CPinfo.bad_it.size();m++)
+    if (CPinfo.bad_it[m] <= CPinfo.path_it) CPinfo.path_it++; // to be tested
 
   return result;
 }
@@ -648,8 +666,56 @@ Matrix3f RoverPathClass::TranMatrix2D(float theta, float t_x, float t_y)
 	output(1,0) = sin(theta);    output(1,1) =  cos(theta);    output(1,2) = t_y;
 	return output;
 }
-	
-MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found)
+
+geometry_msgs::Pose RoverPathClass::EigVecToPose(Vector3f in)
+{
+    geometry_msgs::Pose res;
+    res.position.x = in(0);
+    res.position.y = in(1);
+    res.position.z = in(2);
+    return res;
+}
+
+void RoverPathClass::find_init_control(Vector3f Goal, int particle_no, int& piece_no,MatrixXf& x)
+{
+
+  nav_msgs::Path candidate_path = find_init_candidate(EigVecToPose(Goal));
+  //case of failure
+  if(CPinfo.sample_it == 0)
+  {
+    ROS_ERROR("Failed to find a path");
+    return;
+  }
+  piece_no = CPinfo.sample_it;
+  std::vector<double> v_vector;
+  std::vector<double> o_vector;
+  std::ostringstream ctrl_id;
+  ctrl_id.str("");
+  ctrl_id.clear();
+  ctrl_id << CPinfo.path_it;
+  if(!node_Ptr->getParam("V_1", v_vector)) ROS_FATAL("Lookup table not found - V_1 is missing");
+  if(!node_Ptr->getParam("O_"+ctrl_id.str(), o_vector)) ROS_FATAL_STREAM("Lookup table not found - O_" <<ctrl_id.str()<< "  is missing");
+
+  //Initialize Particle
+  x.setOnes(2*piece_no,particle_no);
+  size_t j=0;
+  for(size_t i=0;i < 2*piece_no ;i++)  // First element set
+  {
+
+    x(i,0) = v_vector[j];
+    i++;
+    x(i,0) = o_vector[j];
+    j++;
+  }
+  // Reset the path address
+  CPinfo.path_it = 0;
+  CPinfo.sample_it = 0;
+  CPinfo.bad_it.clear();
+  path_vector.clear();
+
+}
+
+MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no_,VectorXf& output, bool& solution_found)
 {
 	ROS_INFO("PSO Starts!... GOAL:");
 	if(demo_) std::cout << Goal << std::endl;
@@ -667,27 +733,43 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	
 	//Definition
 	//int piece_no = 1;
-	MatrixXf x;  			//patricle
+  int piece_no = piece_no_;
+  MatrixXf x;  			//patricle
+  find_init_control(Goal_arm, particle_no, piece_no,x);
+
 	VectorXf x_best(2*piece_no);
 	VectorXf G(2*piece_no);
-	MatrixXf v;  			//particle_increment
+
   MatrixXf output_tra;
   output_tra.setZero(3,sample);
-   	 	
+
 	float G_cost = 1.0/0.0;
 	float x_best_cost = 1.0/0.0;
 	   
   // Init particles Start
-	x.setOnes(2*piece_no,particle_no);
-	
-	
+
+  /*
+   * 1- V_curr_c is not needed anymore, instead here the find_init_candidate should be invoked
+   * 2- from output of find_init_candidate the control inputs has to be found from the lookup table
+   * 3- The pso params have to be set in a way that the search alsways stay close to the initial candidate, opposite of what we were doing up to now
+  */
+
+  /*// Failure
+  if(CPinfo.sample_it == 0)
+  {
+    ROS_ERROR("No pass found");
+    return output_tra;
+  }
+
+  x.setOnes(2*piece_no,particle_no);
+
 	for(size_t i=0;i < 2*piece_no ;i++)  // First element set
 	{
 	
 		x(i,0) = V_curr_c(0);
 		i++;
 		x(i,0) = V_curr_c(1);
-	}
+  }*/
 		
 	//ROS_INFO_STREAM("V_curr_c is -------->  "  << V_curr_c);
 
@@ -699,13 +781,15 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
      {
         rand_v = ((float) (rand() % 40))/100 + 0.8;
         rand_w  = ((float) (rand() % 200))/100 -1.0;
-        x(j,i)  = rand_v * V_curr_c(0); //fixed linear speed
+        x(j,i)  = rand_v * x(j,0); //fixed linear speed
         j++;
-        x(j,i)  = rand_w * omega_x;
+        x(j,i)  = rand_w * x(j,0);
      }
 	}
-	
-	v.setZero(2*piece_no,x.cols());
+
+  MatrixXf v;  			//particle_increment
+  v.setZero(2*piece_no,particle_no);
+
 
 	// Init particle End
 
@@ -785,7 +869,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 			//Defining the objective function
 			float Ob_func_1 = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
 			float Ob_func_2 = (cost.Lethal_cost + cost.Inf_cost);				     	     //path cost
-			float Ob_func_3 = fabs(V_curr_c(0) - prop_speed);			      		     //speed effect
+      float Ob_func_3 = fabs(x(0,0) - prop_speed);			      		     //speed effect
       float Ob_func = Goal_gain *Ob_func_1 + Cost_gain *Ob_func_2 + Speed_gain * Ob_func_3;
 				      
 			if(demo_) ROS_ERROR("goal distance: %f, path cost: %f, speed different:%f",Ob_func_1,Ob_func_2,Ob_func_3);
@@ -823,7 +907,7 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double 
 	}
     	
 	output = G;
-  if(demo_) ROS_INFO_STREAM("best particle" << "\n" << G);
+  //if(demo_) ROS_INFO_STREAM("best particle" << "\n" << G);
 	return output_tra;    
 }
 //Private member functions

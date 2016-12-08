@@ -43,7 +43,11 @@ struct CELL{
 	signed char c;
 };
 
-
+struct PathAdr{
+  size_t path_it;
+  size_t sample_it;
+  std::vector<size_t> bad_it;
+};
 
 //define global variables
  extern double omega_x;
@@ -69,7 +73,7 @@ public:
 	
 	void traj_to_cloud(MatrixXf tra);
 
-  void path_lookup_table(ros::Publisher* PCpubPtr);
+  void path_lookup_table(ros::Publisher* PCpubPtr,geometry_msgs::Pose goal);
 
   void LTcleanup(geometry_msgs::Pose Goal);
 
@@ -87,7 +91,7 @@ public:
 	
 	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f);
 	
-	MatrixXf PSO_path_finder(Vector3f Goal,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no,VectorXf& output, bool& solution_found);
+  MatrixXf PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no_,VectorXf& output, bool& solution_found);
 protected:
   ros::NodeHandle* node_Ptr;
 	costmap* master_grid_;
@@ -111,11 +115,13 @@ protected:
 	double Lethal_cost_inc;
 	double Inf_cost_inc;
   float path_z_inc;
+  PathAdr CPinfo; //Candidate path information
 
   //lookupTable
   std::vector<nav_msgs::Path> path_vector;
 
 	private:
+  void init_();
 	bool is_in_costmap(float x, float y, costmap* grid);
   void path_lookup_table(geometry_msgs::Pose goal);
   bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
@@ -127,7 +133,8 @@ protected:
   nav_msgs::Path find_init_candidate(geometry_msgs::Pose Goal);
 
   float pose_distance_2d(geometry_msgs::Pose a,geometry_msgs::Pose b);
-
+  void find_init_control(Vector3f Goal, int particle_no, int& piece_no,MatrixXf& x);
   void shortenLTpaths(geometry_msgs::Pose Goal);
+  geometry_msgs::Pose EigVecToPose(Vector3f in);
 };
 #endif 

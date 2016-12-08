@@ -292,7 +292,11 @@ class ObstacleDetectorClass
 
     RoverPathClass Rov(0.0, sample_L,&n_pr,master_grid_);
     //ROS_WARN("resolution: %f ", master_grid_->getResolution());
-    Rov.path_lookup_table(&lookuppath_pub_);
+    geometry_msgs::Pose goal;
+
+    goal.position.x = 2;
+
+    Rov.path_lookup_table(&lookuppath_pub_,goal);
 
   }
 
@@ -455,15 +459,24 @@ class ObstacleDetectorClass
     V_curr_c(0) = 0.8;
     V_curr_c(1) = 0.3;
 		nav_goal(0) = 2.0;
-    nav_goal(1) = 1.0;
+    nav_goal(1) = -1.0;
     nav_goal(2) = 0.0;
+    Vector3f arm_goal;
+    arm_goal(0) = 1.0;
+    arm_goal(1) = -2.0;
+    arm_goal(2) = 0.0;
+    geometry_msgs::Pose arm_goal_msgs;
+    arm_goal_msgs.position.x = arm_goal(0);
+    arm_goal_msgs.position.y = arm_goal(1);
+    arm_goal_msgs.position.z = 0.0;
 		int sample_ = sample;
 		double b_ = 0.0;
     RoverPathClass Rov(b_,sample_,&n_pr,master_grid_);
 		VectorXf output(6);
     MatrixXf output_tra;
     bool solution_found;
-		output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
+    //Rov.path_lookup_table(&lookuppath_pub_,arm_goal_msgs);
+    output_tra = Rov.PSO_path_finder(nav_goal,arm_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
 		
 		nav_msgs::Path robot_opt_path;			
 		robot_opt_path.header.stamp = ros::Time::now();
@@ -581,7 +594,7 @@ class ObstacleDetectorClass
   				bool solution_found;
   				if (!pso_analyse)
   				{
-  					output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
+            output_tra = Rov.PSO_path_finder(nav_goal,nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
             nav_msgs::Path robot_opt_path = PathFromEigenMat(output_tra, "base_link");
             path_solution_pub_.publish(robot_opt_path);
   					ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
@@ -747,7 +760,7 @@ class ObstacleDetectorClass
 
       //Calling test functions
       curr_time = ros::Time::now();
-      test_lookuptable_class();
+      //test_lookuptable_class();
       if((curr_time - last_time).toSec() > 2.00)
       {
         test_PSO();
