@@ -125,7 +125,7 @@ include_directories(
 
 ## Declare a C++ library
 add_library(RoverPath
-   include/RoverPath.cpp include/costmap.cpp
+   include/RoverPath.cpp include/costmap.cpp include/cnmap.cpp
 )
 
 

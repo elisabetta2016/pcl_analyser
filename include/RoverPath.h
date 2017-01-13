@@ -63,6 +63,8 @@ public:
   RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* grid_);
   RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* obs_grid_, costmap* e_grid_);
 
+  void get_global_attributes(ros::Publisher* path_trace_pub_);
+
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
 	void set_pso_params(double pso_inertia_in,double c_1_in,double c_2_in,double Goal_gain_in,double Cost_gain_in,double Speed_gain_in,int particle_no_,int iteration_);
@@ -117,7 +119,8 @@ protected:
   float path_z_inc;
   double Ts_global;
   PathAdr CPinfo; //Candidate path information
-
+  ros::Publisher* path_trace_pub;
+  bool path_trace_pub_exist;
   //lookupTable
   std::vector<nav_msgs::Path> path_vector;
 

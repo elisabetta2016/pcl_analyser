@@ -32,6 +32,7 @@ void RoverPathClass::init_()
   CPinfo.sample_it = 0;
   CPinfo.path_it = 0;
   Ts_global = 3.00;
+  path_trace_pub_exist = false;
   //CPinfo.bad_it = {};
 
 }
@@ -716,6 +717,12 @@ void RoverPathClass::find_init_control(Vector3f Goal, int particle_no, int& piec
 
 }
 
+void RoverPathClass::get_global_attributes(ros::Publisher* path_trace_pub_)
+{
+  path_trace_pub =path_trace_pub_;
+  path_trace_pub_exist = true;
+}
+
 MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no_,VectorXf& output, bool& solution_found)
 {
 	ROS_INFO("PSO Starts!... GOAL:");
@@ -909,6 +916,14 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2
     	
 	output = G;
   //if(demo_) ROS_INFO_STREAM("best particle" << "\n" << G);
+  if(path_trace_pub_exist)
+  {
+    sensor_msgs::PointCloud2 PC;
+    PC.header.frame_id = "base_link";
+    PC.header.stamp = ros::Time::now();
+    pcl::toROSMsg(path_trace_pcl,PC);
+    path_trace_pub->publish(PC);
+  }
 	return output_tra;    
 }
 //Private member functions

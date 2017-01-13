@@ -16,9 +16,18 @@ costmap::costmap(double x_orig_,double y_orig_,unsigned int cell_x_size_,unsigne
     frame_id = frame_id_;
     show_debug = show_debug_;
     if (show_debug_) ROS_INFO("costmap prints debug msgs");
+    init = true;
 }
 
+costmap::costmap()
+{
+   init = false;
+}
 
+bool costmap::is_initialized()
+{
+  return init;
+}
 
 float costmap::getOriginX()
 {
@@ -182,4 +191,11 @@ std::vector<signed char> costmap::MatrixToVector()
     }
     return Vector;
 
+}
+bool costmap::Is_in_map(int mx,int my){
+  if (mx > cell_x_size || mx < 0)
+    return false;
+  if (my > cell_y_size || my < 0)
+    return false;
+  return true;
 }
