@@ -9,6 +9,7 @@ public:
   cnmap(costmap *base_map_ptr, int scale, bool debug_);
   cnmap();
   ~cnmap();
+  void test();
   void update();
   void set_home(float wx,float wy);
   void publish_ROS(ros::Publisher *pubPtr_);
