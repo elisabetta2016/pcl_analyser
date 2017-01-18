@@ -105,10 +105,10 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES pcl_analyser
-#  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
-#  DEPENDS system_lib
+  INCLUDE_DIRS include
+  LIBRARIES costmap
+  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
+  DEPENDS system_lib
 )
 
 ###########
@@ -119,14 +119,15 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
-  include
+  include/${PROJECT_NAME}
   ${catkin_INCLUDE_DIRS}
 ) 
 
 ## Declare a C++ library
 add_library(RoverPath
-   include/RoverPath.cpp include/costmap.cpp include/cnmap.cpp
+   include/${PROJECT_NAME}/RoverPath.cpp
 )
+add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/cnmap.cpp)
 
 
 ## Add cmake target dependencies of the library
@@ -145,7 +146,7 @@ add_library(RoverPath
  add_dependencies(pcl_analyser_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(pcl_analyser_node RoverPath 
+ target_link_libraries(pcl_analyser_node RoverPath costmap
    ${catkin_LIBRARIES}
  )
  
@@ -171,18 +172,18 @@ add_library(RoverPath
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS pcl_analyser pcl_analyser_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS costmap
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

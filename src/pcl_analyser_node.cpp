@@ -50,7 +50,7 @@
  #include <Eigen/Dense> 
 
  #include "RoverPath.h"
- #include "costmap.h" 
+ #include "costmap.h"
  #include <vector>
 
 //#defs
