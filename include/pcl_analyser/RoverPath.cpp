@@ -14,6 +14,7 @@ RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, cost
   node_Ptr = nPtr;
   init_();
 }
+
 RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, costmap *obs_grid_, costmap *e_grid_)
 {
 	Rover_b = b_;
@@ -23,6 +24,7 @@ RoverPathClass::RoverPathClass(double b_,int sample_,ros::NodeHandle* nPtr, cost
   node_Ptr = nPtr;
   init_();
 }
+
 void RoverPathClass::init_()
 {
   set_pso_params_default();
@@ -347,14 +349,14 @@ bool RoverPathClass::is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::P
   return out;
 }
 
-
 void RoverPathClass::set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_)
 {
 	Travel_cost_inc = Travel_cost_inc_;
 	Lethal_cost_inc = Lethal_cost_inc_;
 	Inf_cost_inc = Inf_cost_inc_;
 
-}	
+}
+
 void RoverPathClass::set_pso_params(double pso_inertia_,double c_1_,double c_2_,double Goal_gain_,double Cost_gain_,double Speed_gain_,int particle_no_,int iteration_)
 {
 	
@@ -384,8 +386,7 @@ void RoverPathClass::update_costmap(costmap *grid_)
 {
 	master_grid_ = grid_;
 }
-	
-	
+		
 pcl::PointCloud<pcl::PointXYZ> RoverPathClass::get_path_trace_cloud()
 {
 	return path_trace_pcl;
@@ -485,12 +486,6 @@ MatrixXf RoverPathClass::Rover_vw(VectorXf V_input, VectorXf Omega_input, double
     	
 	return x;  
 }
-/*
-void RoverPathClass::Ctrl_sim()
-{
-  float tracking_precision = 0.01; //TBD
-
-}*/
 	
 void RoverPathClass::traj_to_cloud(MatrixXf tra)
 {
@@ -509,8 +504,9 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
-void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
+float RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
 {
+  float cost = 0.0;
 	int vector_size = Path.cols();
 	VectorXf temp_output (vector_size);
     //geometry_msgs::PoseArray msg;
@@ -583,11 +579,47 @@ void RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double ma
 		temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (temp_output(i), 0.0, Path(2,i));
 		msg.poses[i] = temp_pose;
 	}
-	Poses = temp_output;
+  Poses = temp_output; // Poses are rolls
 	//ROS_WARN_STREAM(temp_output);
 	msg.header.stamp = ros::Time::now();
 	msg.header.frame_id = "base_link";
+  float roll_0 = 0.0;
+  float COST_MAX = temp_output.cols() * M_PI/2; // The worst case is when there is M_PI/4 diff and M_PI/4 const for each sample
+  for(int i = 0;i< temp_output.cols();i++)
+  {
+    if(temp_output(i) > M_PI/4 || temp_output(i) < -M_PI/4) //hazard
+    {
+      cost = 1.5*COST_MAX;
+      return cost/COST_MAX;
+    }
+    else
+    {
+      cost = fabs(temp_output(i)-roll_0)+fabs(temp_output(i))+cost; // 1st term differential term 2nd term current roll
+      roll_0 = temp_output(i);
+    }
+    //normalized output
+    return cost/COST_MAX;
+  }
 	
+}
+
+float RoverPathClass::Arm_energy(MatrixXf Path, Vector3f goal)
+{
+   float cost = 0.0;
+   float x,y,theta_0,theta;
+   float COST_MAX = M_PI*Path.cols();
+   theta_0 = 0; //assuming that initially arm points to the target
+   // make sure the goal is being described in the body frame (base_link)
+   for (int i = 0; i<Path.cols();i++)
+   {
+     x = goal(0) - Path(0,i);
+     y = goal(1) - Path(1,i);
+     theta = atan2(y,x);
+     cost = cost + fabs(theta - theta_0);
+     theta_0 = theta;
+   }
+   //normalized output
+   return cost/COST_MAX;
 }
 
 void RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm)
@@ -717,7 +749,7 @@ void RoverPathClass::find_init_control(Vector3f Goal, int particle_no, int& piec
 
 }
 
-void RoverPathClass::get_global_attributes(ros::Publisher* path_trace_pub_)
+void RoverPathClass::get_global_attributes(boost::shared_ptr <ros::Publisher> path_trace_pub_)
 {
   path_trace_pub =path_trace_pub_;
   path_trace_pub_exist = true;
@@ -874,10 +906,13 @@ MatrixXf RoverPathClass::PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2
 			
 			float prop_speed = fabs(x(0,i));
 			
-			//Defining the objective function
+      //Defining the objective function - Objective func needs significant improvement
 			float Ob_func_1 = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
-			float Ob_func_2 = (cost.Lethal_cost + cost.Inf_cost);				     	     //path cost
-      float Ob_func_3 = fabs(x(0,0) - prop_speed);			      		     //speed effect
+      float Ob_func_2 = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
+      float Ob_func_3 = fabs(x(0,0) - prop_speed);			      		     // speed effect
+      // Goal distance cost can be evaluated using cnmap now
+      // Chassis cost term to be added
+      // Arm energy consumption based on path to be calculated and added
       float Ob_func = Goal_gain *Ob_func_1 + Cost_gain *Ob_func_2 + Speed_gain * Ob_func_3;
 				      
 			if(demo_) ROS_ERROR("goal distance: %f, path cost: %f, speed different:%f",Ob_func_1,Ob_func_2,Ob_func_3);

@@ -5,6 +5,7 @@ project(pcl_analyser)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  message_generation
   tf
   pcl_conversions
   pcl_ros
@@ -13,6 +14,9 @@ find_package(catkin REQUIRED COMPONENTS
   laser_assembler
   costmap_2d
   hector_elevation_mapping
+  std_msgs
+  geometry_msgs  
+  nav_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -49,11 +53,12 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+   DIRECTORY msg
+   FILES
+   Lpath.msg
+   Lookuptbl.msg 
+ )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -70,10 +75,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   sensor_msgs
-# )
+generate_messages(
+   DEPENDENCIES
+   std_msgs  
+   geometry_msgs  
+   nav_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -109,6 +116,7 @@ catkin_package(
   LIBRARIES costmap
   CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
   DEPENDS system_lib
+  message_runtime
 )
 
 ###########
@@ -125,7 +133,7 @@ include_directories(
 
 ## Declare a C++ library
 add_library(RoverPath
-   include/${PROJECT_NAME}/RoverPath.cpp
+   include/${PROJECT_NAME}/RoverPath.cpp include/${PROJECT_NAME}/pathsolver.cpp
 )
 add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/cnmap.cpp)
 
@@ -139,7 +147,7 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
  add_executable(pcl_analyser_node src/pcl_analyser_node.cpp)
  add_executable(path_follower src/path_follower.cpp)
  add_executable(fake_obs_publisher src/fake_obs_publisher.cpp)
- 
+ add_executable(lpgen src/lpgen.cpp)
  
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -149,7 +157,9 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
  target_link_libraries(pcl_analyser_node RoverPath costmap
    ${catkin_LIBRARIES}
  )
- 
+ target_link_libraries(lpgen RoverPath 
+   ${catkin_LIBRARIES} 
+ ) 
  target_link_libraries(path_follower
    ${catkin_LIBRARIES}
  )

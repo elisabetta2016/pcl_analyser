@@ -63,7 +63,7 @@ public:
   RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* grid_);
   RoverPathClass(double b_,int sample_, ros::NodeHandle* nPtr,costmap* obs_grid_, costmap* e_grid_);
 
-  void get_global_attributes(ros::Publisher* path_trace_pub_);
+  void get_global_attributes(boost::shared_ptr <ros::Publisher> path_trace_pub_);
 
 	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
 	
@@ -81,7 +81,7 @@ public:
 
   bool is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
 
-	void Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
+  float Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
 	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
 
@@ -119,7 +119,7 @@ protected:
   float path_z_inc;
   double Ts_global;
   PathAdr CPinfo; //Candidate path information
-  ros::Publisher* path_trace_pub;
+  boost::shared_ptr <ros::Publisher> path_trace_pub;
   bool path_trace_pub_exist;
   //lookupTable
   std::vector<nav_msgs::Path> path_vector;
@@ -140,5 +140,6 @@ protected:
   void find_init_control(Vector3f Goal, int particle_no, int& piece_no,MatrixXf& x);
   void shortenLTpaths(geometry_msgs::Pose Goal);
   geometry_msgs::Pose EigVecToPose(Vector3f in);
+  float Arm_energy(MatrixXf Path, Vector3f goal);
 };
 #endif 

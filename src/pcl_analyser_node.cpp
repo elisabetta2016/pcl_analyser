@@ -51,6 +51,7 @@
 
  #include "RoverPath.h"
  #include "costmap.h"
+ #include "pathsolver.h"
  #include <vector>
 
 //#defs
@@ -94,7 +95,23 @@ struct PointIndex {
  double Watching_hor = 3.0; //Default value
 
 
-class ObstacleDetectorClass
+ nav_msgs::Path MatToPath(MatrixXf output_tra,std::string frame_id)
+ {
+    nav_msgs::Path robot_opt_path;
+    int sample = output_tra.cols();
+    robot_opt_path.header.stamp = ros::Time::now();
+    robot_opt_path.header.frame_id = frame_id;
+    robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
+    for(size_t i=0; i < sample; i++)
+    {
+        robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
+        robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
+        robot_opt_path.poses[i].pose.position.z = 0.0;
+    }
+    return robot_opt_path;
+ }
+
+ class ObstacleDetectorClass
 {
 	public:
 		
@@ -113,7 +130,6 @@ class ObstacleDetectorClass
       obstcle_pub_		    = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-      path_trace_pub_     = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
       repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
 			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
       path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
@@ -122,6 +138,8 @@ class ObstacleDetectorClass
       ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
       Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
       Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
+      path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
+      trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
       /*
       // Range image params
     			
@@ -475,21 +493,11 @@ class ObstacleDetectorClass
 		VectorXf output(6);
     MatrixXf output_tra;
     bool solution_found;
+    Rov.get_global_attributes(path_trace_pub_ptr);
     //Rov.path_lookup_table(&lookuppath_pub_,arm_goal_msgs);
     output_tra = Rov.PSO_path_finder(nav_goal,arm_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
-		
-		nav_msgs::Path robot_opt_path;			
-		robot_opt_path.header.stamp = ros::Time::now();
-		robot_opt_path.header.frame_id = "base_link";
-		robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
-    for(size_t i=0; i < sample; i++)
-		{
 
-			robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
-			robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
-			robot_opt_path.poses[i].pose.position.z = 0.0;
-		}
-		path_solution_pub_.publish(robot_opt_path);
+    path_solution_pub_.publish(MatToPath(output_tra,"base_link"));
   		
 		//Invoking the Rover parts function
 		
@@ -500,11 +508,11 @@ class ObstacleDetectorClass
 		MatrixXf RearLeftTrack; 
 		MatrixXf Arm;
 		/*
-    		FrontRightTrack.Zero(3,sample);
-    		FrontLeftTrack.Zero(3,sample);
-    		RearRightTrack.Zero(3,sample);
-   		RearLeftTrack.Zero(3,sample);
-    		Arm.Zero(3,sample);*/
+    FrontRightTrack.Zero(3,sample);
+    FrontLeftTrack.Zero(3,sample);
+    RearRightTrack.Zero(3,sample);
+    RearLeftTrack.Zero(3,sample);
+    Arm.Zero(3,sample);*/
 
 		Rov.Rover_parts(output_tra, FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
 
@@ -522,9 +530,18 @@ class ObstacleDetectorClass
 		path_colision_pub_.publish(robot_path);
 		
 							
-  		//ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
+    //ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
 	}
 	
+  void test_pathsolver()
+  {
+     geometry_msgs::Pose goal;
+     goal.position.x = 2;
+     goal.position.y = 3;
+     pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,15);
+     p.handle(&path_solution_pub_,&trace_pub,goal);
+  }
+
 	void TrackCallback(const donkey_rover::Rover_Track_Speed::ConstPtr& msg)
 	{
 		
@@ -763,11 +780,10 @@ class ObstacleDetectorClass
       //test_lookuptable_class();
       if((curr_time - last_time).toSec() > 2.00)
       {
-        test_PSO();
+        test_pathsolver();
+        //test_PSO();
         last_time = curr_time;
       }
-
-
 
       // End Calling Test functions
 			// Publishing costmap pointcoud
@@ -775,15 +791,14 @@ class ObstacleDetectorClass
       costmap_cl.header.frame_id = "base_link";
       costmap_cl.header.stamp = ros::Time::now();
 			cost_map_cl_pub_.publish(costmap_cl);			
-			
-				
-			//Publish trace path
+						
+      /*
 			sensor_msgs::PointCloud2 path_trace; 
 			pcl::toROSMsg(path_trace_pcl,path_trace);
       path_trace.header.frame_id = "base_link";
       path_trace.header.stamp = ros::Time::now();
       path_trace_pub_.publish(path_trace);
-    			
+      */
 			rate.sleep();
 			ros::spinOnce ();
 						
@@ -811,12 +826,14 @@ class ObstacleDetectorClass
 		ros::Publisher repuslive_force_pub_;
 		ros::Publisher path_pub_;
 		ros::Publisher path_solution_pub_;
-		ros::Publisher path_trace_pub_;
+    //ros::Publisher* path_trace_pub_ptr;
 		ros::Publisher path_colision_pub_;
 		ros::Publisher lookuppath_pub_;
 		ros::Publisher ChassisPose_pub_;
 		ros::Publisher Elevation_pub_;
 		ros::Publisher Obstacle_pub_;
+    boost::shared_ptr <ros::Publisher> path_trace_pub_ptr;
+    ros::Publisher trace_pub;
 
 		geometry_msgs::Vector3 repulsive_force;
 		

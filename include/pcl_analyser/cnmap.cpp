@@ -189,14 +189,13 @@ unsigned char cnmap::find_cell_status(int a, int b)
     for(unsigned int j =0; j < sub_res; j++)
     {
       curr_cost =base_ptr->getCost(mx_base_0+i,my_base_0+j);
-      //debug
-      //ROS_ERROR_COND(debug && curr_cost!=UNKOWN,"cost: %d",curr_cost);
+
       if(curr_cost == UNKOWN) //unkown
         unkown++;
       if(curr_cost != FREE && curr_cost != UNKOWN)
       {
         occ++;
-        ROS_WARN_COND(true,"Occupied cell found: %d cost: %d",occ,curr_cost);
+        ROS_WARN_COND(true,"Occupied cell found: %d cost: %d",occ,(unsigned char)curr_cost);
       }
       if(curr_cost == FREE)
       {
@@ -206,12 +205,36 @@ unsigned char cnmap::find_cell_status(int a, int b)
 
     }
   }
-  int sub_cell_no = unkown+occ+free;//(int) floor(1/sub_res/sub_res);
+  //Decision Making
+  int sub_cell_no = unkown+occ+free;
+  if(free > (int)round(sub_cell_no * 0.8)) result = FREE;
+  else if( occ == sub_cell_no) result = OCC;
+  else if( unkown ==sub_cell_no) result = unkown;
+  else
+  {
+    if(free > 0 && unkown > 0 && occ == 0)
+    {
+      result = round(40 * free/sub_cell_no) +10;
+    }
+    if(unkown > 0 && occ > 0 && free == 0)
+    {
+      result = UNKOWN;
+    }
+    if(free>0 && occ>0)
+    {
+      if(unkown > round(0.4 * sub_cell_no))
+        result = UNKOWN;
+      else
+        result = round(40 * occ/sub_cell_no) +50;
+    }
+  }
+
+  /*
   if(free > (int)round(sub_cell_no * 0.8) )
     result = FREE; //Free
   if(occ > 0)
     result = OCC;//Occupoied
-  ROS_INFO_COND(debug&&result != UNKOWN,"Big cell cost: %d",result);
+  ROS_INFO_COND(debug&&result != UNKOWN,"Big cell cost: %d",result);*/
   return result;
 }
 
