@@ -30,6 +30,18 @@ void Tra_to_cloud(MatrixXf tra,PointCloudPtr cloud_ptr)
   }
 
 }
+
+VectorXf linspace(float min, float max, unsigned int item)
+{
+  VectorXf V(item);
+  float d = (max-min)/(item-1);
+  for(int i=0; i< item; i++)
+  {
+    V(i) = min + i*d;
+  }
+  return V;
+}
+
 // Class definition
 pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_grid_,double b, float Ts_, int sample_)
 {
@@ -93,7 +105,41 @@ MatrixXf pathsolver::compute_tra(float a,float b,float c,float d,float v,float s
     return tra;
 }
 
-float pathsolver::compute_J(MatrixXf *traptr,VectorXf Goal,bool& solution_found)
+MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost)
+{
+  MatrixXf x;
+  x.setZero(3,sample);
+  VectorXf s = linspace(0.0,s_max,sample);
+  float range = Q.v;
+  float dt = range/sample;
+  float theta = 0;
+  float dx = 0;
+  float dy = 0;
+  x(0,0) = 0.0;
+  x(0,1) = 0.0;
+  x(0,2) = 0.0;
+  cost = 0;
+  for(int i = 1; i<sample; i++)
+  {
+    theta = Q.a*s(i) + Q.b*pow(s(i),2)/2 + Q.c*pow(s(i),3)/3 +Q.d*pow(s(i),4)/4;
+    x(0,i) = x(0,i-1)+dx;
+    x(1,i) = x(1,i-1)+dy;
+    x(2,i) = theta;
+    dx = cos(theta)*dt;//V = 1 m/s
+    dy = sin(theta)*dt;//V = 1 m/s
+    cost = fabs(dx) + fabs(dy);
+    if(i == sample-1)
+    {
+      tail.position.x = x(0,i);
+      tail.position.y = x(1,i);
+      tail.orientation = tf::createQuaternionMsgFromYaw(x(2,i));
+    }
+  }
+
+  return x;
+}
+
+float pathsolver::compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool& solution_found)
 {
   float J = 0.0;
   Vector3f tra_tail;
@@ -107,7 +153,7 @@ float pathsolver::compute_J(MatrixXf *traptr,VectorXf Goal,bool& solution_found)
   // Goal distance cost can be evaluated using cnmap now
   // Chassis cost term to be added
   // Arm energy consumption based on path to be calculated and added
-  J = J_0 + J_1;
+  J = J_0 + J_1 + travelcost;
   ROS_INFO("cost of current path is %f",J);
   if (cost.Lethal_cost < 1) solution_found = true;
   return J;
@@ -154,6 +200,7 @@ void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_in
       ROS_WARN("pso pso_c_2 is missing, it is set to the default value of %f",c_2);
    }
 }
+
 nav_msgs::Path pathsolver::solve(Vector3f goal)
 {
    /*particle structure:
@@ -199,10 +246,15 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
       //Defining random coeffs of the PSO
       float r_1  = ((float) (rand() % 200))/100 -1.0;
       float r_2  = ((float) (rand() % 200))/100 -1.0;
-      tra = compute_tra(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i),s_max);
+      ctrlparam Q;
+      geometry_msgs::Pose tail;
+      double travelcost;
+      Q.fill_in(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i));
+      tra = rover_tra(Q,s_max,tail,travelcost);
+      //tra = compute_tra(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i),s_max); deprecated
       ROS_WARN_STREAM("current tra:\n" << tra);
       Tra_to_cloud(tra,pathtrace_ptr);
-      float Ob_func = compute_J(&tra,goal,solution_found);
+      float Ob_func = compute_J(&tra,travelcost,goal,solution_found);
       //Best particle in the current iteration
       if (Ob_func < x_best_cost)
       {

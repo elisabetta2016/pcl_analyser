@@ -7,6 +7,7 @@
 #include <math.h>
 #include <tf/transform_datatypes.h>
 #include"RoverPath.h"
+#include"pathsolver.h"
 //Messages
  #include <nav_msgs/OccupancyGrid.h>
  #include <nav_msgs/Path.h>
@@ -16,23 +17,13 @@
 typedef pcl::PointXYZI pointT;
 typedef pcl::PointCloud <pointT> PCL;
 using namespace Eigen;
-struct ctrlparam
-{
-  double a;
-  double b;
-  double c;
-  double d;
-  double v;
-  void fill_in(double a_, double b_,double c_, double d_,double v_)
-  {
-    this->a = a_;
-    this->b = b_;
-    this->c = c_;
-    this->d = d_;
-    this->v = v_;
-  }
-} q;
-
+float b_max, b_min, c_max, c_min, d_min ,d_max, a_min, a_max;
+int step_b, step_c,step_d,step_a;
+VectorXf A_vec;
+VectorXf B_vec;
+VectorXf C_vec;
+VectorXf D_vec;
+VectorXf V_vec;
 nav_msgs::Path MatToPath(MatrixXf output_tra,std::string frame_id)
 {
    nav_msgs::Path robot_opt_path;
@@ -52,8 +43,15 @@ nav_msgs::Path MatToPath(MatrixXf output_tra,std::string frame_id)
 
 VectorXf linspace(float min, float max, unsigned int item)
 {
+  if(item<2)
+  {
+    VectorXf V2;
+    V2.resize(1);
+    V2(0) = min;
+    return V2;
+  }
   VectorXf V(item);
-  float d = (max-min)/item;
+  float d = (max-min)/(item-1);
   for(int i=0; i< item; i++)
   {
     V(i) = min + i*d;
@@ -189,7 +187,7 @@ class lpgen
      {
       msg.header.frame_id = "base_link";
       msg.header.stamp = ros::Time::now();
-      ros::Rate r(10);
+      ros::Rate r(demo_rate);
       pathpub.publish(msg);
       r.sleep();
       if(!n_.ok()) return msg;
@@ -243,11 +241,8 @@ class lpgen
     void fill(double v_norm)
     {
       traceptr->clear();
-      VectorXf V_vec(7);
-      VectorXf B_vec = linspace(-7.0,7.0,8);
-      VectorXf C_vec = linspace(7.0,-7.0,8);
-      VectorXf D_vec = linspace(1.0,1.0,8);
-      V_vec << 0.1,0.15,0.2,0.3,0.4,0.7,0.9;
+      //VectorXf V_vec(1);
+      //V_vec << 0.1,0.15,0.2,0.3,0.4,0.7,0.9;
 
       V_vec *= v_norm;
       Vector3f x_0,x_dot_0;
@@ -259,17 +254,19 @@ class lpgen
       for (int v = 0;v<V_vec.rows();v++)
       {
          ROS_INFO("v: %f", V_vec(v));
-         for (int d = 0;d<D_vec.rows();d++)
+         for (int a =0; a<A_vec.rows();a++)
          {
-            ROS_INFO("   d: %f", D_vec(d));
-            for (int c = 0;c<C_vec.rows();c++)
-            {
-               ROS_INFO("       c: %f", C_vec(c));
-               for (int b = 0;b<B_vec.rows();b++)
-               {
-                  ROS_INFO("            b: %f", B_vec(b));
+           for (int b = 0;b<B_vec.rows();b++)
+           {
+              ROS_ERROR("   b: %f", B_vec(b));
+              for (int c = 0;c<C_vec.rows();c++)
+              {
+                 ROS_WARN("       c: %f", C_vec(c));
+                 for (int d = 0;d<D_vec.rows();d++)
+                 {
+                  ROS_INFO("            d: %f", D_vec(d));
                   pcl_analyser::Lpath lp;
-                  lp.a = 0;
+                  lp.a = A_vec(a);
                   lp.b = B_vec(b);
                   lp.c = C_vec(c);
                   lp.d = D_vec(d);
@@ -287,7 +284,8 @@ class lpgen
                   LPTmsgptr->pathes.push_back(lp);
                   LPTmsgptr->quantity ++;
                   pushpath2cloud(lp.id,lp.path);
-               }
+                 }
+              }
             }
          }
       }
@@ -308,9 +306,42 @@ class lpgen
 
     }
 
+    void gen()
+    {
+      demo_rate = 200.0;
+      rate = 10.0;
+      ros::Rate r(rate);
+      sensor_msgs::PointCloud2 msg;
+      A_vec = linspace(-3,-3,1);
+      B_vec = linspace(7,2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(-0.2,0.2,4);
+      V_vec = linspace(0.3,0.9,3);
+      fill(10);
+      A_vec = linspace(3,3,1);
+      B_vec = linspace(-7,-2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(-0.2,0.2,4);
+      V_vec = linspace(0.3,0.9,3);
+      fill(10);
+
+      A_vec = linspace(0,0,1);
+      B_vec = linspace(7,-7,5);
+      C_vec = linspace(7,-7,3);
+      D_vec = linspace(-0.2,0.2,4);
+      V_vec = linspace(0.3,0.9,3);
+      fill(10);
+
+      pcl::toROSMsg(*traceptr,msg);
+      msg.header.stamp = ros::Time::now();
+      msg.header.frame_id = "base_link";
+
+    }
+
 
     void run()
     {
+       demo_rate = 10.0;
        rate = 10.0;
        ros::Rate r(rate);
        sensor_msgs::PointCloud2 msg;
@@ -346,14 +377,112 @@ class lpgen
   double lookahead;
   pcl::PointCloud<pointT>::Ptr traceptr;
   bool show;
+  double demo_rate;
 };
 
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "LPgen");
   ros::NodeHandle node;
-
+  //float b_max, b_min, c_max, c_min, d;
+  //int step_b, step_c;
+  float d;
   lpgen tt(node);
-  tt.run();
+  switch (argc)
+  {
+  case 2:
+    tt.gen();
+    break;
+  case 6:
+    b_min = atof(argv[1]);
+    b_max = atof(argv[2]);
+    c_min = atof(argv[3]);
+    c_max = atof(argv[4]);
+    d =     atof(argv[5]);
+    step_b = 8;
+    step_c = 8;
+    ROS_INFO("b = [%f  %d steps  %f]",b_min,step_b,b_max);
+    ROS_INFO("c = [%f  %d steps  %f]",c_min,step_c,c_max);
+    A_vec.resize(1);
+    A_vec << 0.0;
+    B_vec = linspace(b_min,b_max,step_b);
+    C_vec = linspace(c_min,c_max,step_c);
+    D_vec.resize(1);
+    D_vec(0) = d;
+    V_vec.resize(1);
+    V_vec(0) = 1;
+    tt.run();
+    break;
+  case 8:
+    b_min  = atof(argv[1]);
+    b_max  = atof(argv[2]);
+    step_b = atoi(argv[3]);
+    c_min  = atof(argv[4]);
+    c_max  = atof(argv[5]);
+    step_c = atoi(argv[6]);
+    d =      atof(argv[7]);
+    ROS_INFO("b = [%f  %d steps  %f]",b_min,step_b,b_max);
+    ROS_INFO("c = [%f  %d steps  %f]",c_min,step_c,c_max);
+    A_vec.resize(1);
+    A_vec << 0.0;
+    B_vec = linspace(b_min,b_max,step_b);
+    C_vec = linspace(c_min,c_max,step_c);
+    D_vec.resize(1);
+    D_vec(0) = d;
+    V_vec.resize(1);
+    V_vec(0) = 1;
+    tt.run();
+    break;
+  case 13:
+    a_min  = atof(argv[1]);
+    a_max  = atof(argv[2]);
+    step_a = atoi(argv[3]);
+    b_min  = atof(argv[4]);
+    b_max  = atof(argv[5]);
+    step_b = atoi(argv[6]);
+    c_min  = atof(argv[7]);
+    c_max  = atof(argv[8]);
+    step_c = atoi(argv[9]);
+    d_min  = atof(argv[10]);
+    d_max  = atof(argv[11]);
+    step_d = atoi(argv[12]);
+    A_vec = linspace(a_min,a_max,step_a);
+    B_vec = linspace(b_min,b_max,step_b);
+    C_vec = linspace(c_min,c_max,step_c);
+    D_vec = linspace(d_min,d_max,step_d);
+    ROS_INFO("a = [%f  %d steps  %f]",a_min,step_a,a_max);
+    ROS_INFO("b = [%f  %d steps  %f]",b_min,step_b,b_max);
+    ROS_INFO("c = [%f  %d steps  %f]",c_min,step_c,c_max);
+    ROS_INFO("d = [%f  %d steps  %f]",d_min,step_d,d_max);
+    V_vec.resize(1);
+    V_vec(0) = 1;
+    tt.run();
+    break;
+  default:
+    b_min  = -7.0;
+    b_max  = 7.0;
+    step_b = 8;
+    c_min  = 7.0;
+    c_max  = -7.0;
+    step_c = 8;
+    d =      0;
+    ROS_WARN("Argument received: %d", argc);
+    ROS_INFO("b = [%f  %d steps  %f]",b_min,step_b,b_max);
+    ROS_INFO("c = [%f  %d steps  %f]",c_min,step_c,c_max);
+    A_vec.resize(1);
+    A_vec(0) = 0.0;
+    B_vec = linspace(b_min,b_max,step_b);
+    C_vec = linspace(c_min,c_max,step_c);
+    D_vec.resize(1);
+    D_vec(0) = d;
+    V_vec.resize(1);
+    V_vec(0) = 1;
+    tt.run();
+    break;
+  }
+
+
+
+
   return 0;
 }
