@@ -14,6 +14,17 @@
  #include <geometry_msgs/PoseArray.h>
  #include <pcl_analyser/Lpath.h>
  #include <pcl_analyser/Lookuptbl.h>
+
+//read write
+#include <rosbag/bag.h>
+#include <ros/package.h>
+#include <rosbag/view.h>
+
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
+
+
+
 typedef pcl::PointXYZI pointT;
 typedef pcl::PointCloud <pointT> PCL;
 using namespace Eigen;
@@ -75,17 +86,25 @@ class lpgen
        traceptr = tmp_ptr;
        show = true;
        cloudpub = n_.advertise<sensor_msgs::PointCloud2>("LookupTableCloud", 10);
-       pathpub  = n_.advertise<nav_msgs::Path> ("pathLP",100);
+       pathpub  = n_.advertise<nav_msgs::Path> ("pathLP",1);
+       path = ros::package::getPath("pcl_analyser") + "/config/lookuptable.bag";
+       bagptr = new rosbag::Bag();
+       debug = false;
     }
 
     ~lpgen()
     {
       delete LPTmsgptr;
+      delete bagptr;
       ROS_WARN("LookUp table generation node Ciao!");
     }
 
-    //void writetobag()
-    //{}
+    void writetobag()
+    {
+      bagptr->open(path, rosbag::bagmode::Write);
+      bagptr->write("lookuptable", ros::Time::now(), *LPTmsgptr);
+      bagptr->close();
+    }
 
     void test()
     {
@@ -230,8 +249,9 @@ class lpgen
       {
        msg.header.frame_id = "base_link";
        msg.header.stamp = ros::Time::now();
-       ros::Rate r(10);
+       ros::Rate r(demo_rate);
        pathpub.publish(msg);
+
        r.sleep();
        if(!n_.ok()) return msg;
       }
@@ -249,22 +269,82 @@ class lpgen
       x_0 << 0.0,0.0,0.0;
       x_dot_0 << 0.0,0.0,0.0;
       int id = 0;
-      ROS_WARN_STREAM("B_vec \n" << B_vec <<"\n V_vec \n" << V_vec);
-      ROS_INFO_STREAM("v cols  " <<V_vec.cols()<<"  b cols  " <<B_vec.cols());
+      ROS_WARN_STREAM_COND(debug,"B_vec \n" << B_vec <<"\n V_vec \n" << V_vec);
+      ROS_INFO_STREAM_COND(debug,"v cols  " <<V_vec.cols()<<"  b cols  " <<B_vec.cols());
       for (int v = 0;v<V_vec.rows();v++)
       {
-         ROS_INFO("v: %f", V_vec(v));
+         ROS_INFO_COND(debug,"v: %f", V_vec(v));
          for (int a =0; a<A_vec.rows();a++)
          {
+           //B_vec = linspace(-0.3*A_vec(a),-2.3*A_vec(a),4);
            for (int b = 0;b<B_vec.rows();b++)
            {
-              ROS_ERROR("   b: %f", B_vec(b));
+              //C_vec = linspace(-0.3*B_vec(b),-2.3*B_vec(b),4);
+              ROS_ERROR_COND(debug,"   b: %f", B_vec(b));
               for (int c = 0;c<C_vec.rows();c++)
               {
-                 ROS_WARN("       c: %f", C_vec(c));
+                 ROS_WARN_COND(debug,"       c: %f", C_vec(c));
+                 //D_vec = linspace(-0.8*C_vec(c),-1.2*C_vec(c),4);
                  for (int d = 0;d<D_vec.rows();d++)
                  {
-                  ROS_INFO("            d: %f", D_vec(d));
+                  ROS_INFO_COND(debug,"            d: %f", D_vec(d));
+                  pcl_analyser::Lpath lp;
+                  lp.a = A_vec(a);
+                  lp.b = B_vec(b);
+                  lp.c = C_vec(c);
+                  lp.d = D_vec(d);
+                  lp.v = V_vec(v);
+                  lp.id = id;
+                  id++;
+                  double cost_temp;
+                  ctrlparam q;
+                  q.fill_in(lp.a,lp.b,lp.c,lp.d,lp.v);
+                  //ROS_WARN_STREAM(lp);
+                  geometry_msgs::Pose temp_tail;
+                  lp.path = rover_tra(q,temp_tail, cost_temp);
+                  lp.tail = temp_tail;
+                  lp.cost = cost_temp;
+                  LPTmsgptr->pathes.push_back(lp);
+                  LPTmsgptr->quantity ++;
+                  pushpath2cloud(lp.id,lp.path);
+                 }
+              }
+            }
+         }
+      }
+
+    }
+
+    void fill_smart(double v_norm, float min_a,float max_a, unsigned int a_step)
+    {
+      traceptr->clear();
+      //VectorXf V_vec(1);
+      //V_vec << 0.1,0.15,0.2,0.3,0.4,0.7,0.9;
+      A_vec = linspace(min_a,max_a,a_step);
+      V_vec *= v_norm;
+      Vector3f x_0,x_dot_0;
+      x_0 << 0.0,0.0,0.0;
+      x_dot_0 << 0.0,0.0,0.0;
+      int id = 0;
+      ROS_WARN_STREAM_COND(debug,"B_vec \n" << B_vec <<"\n V_vec \n" << V_vec);
+      ROS_INFO_STREAM_COND(debug,"v cols  " <<V_vec.cols()<<"  b cols  " <<B_vec.cols());
+      for (int v = 0;v<V_vec.rows();v++)
+      {
+         ROS_INFO_COND(debug,"v: %f", V_vec(v));
+         for (int a =0; a<A_vec.rows();a++)
+         {
+           B_vec = linspace(-0.3*A_vec(a),-2.3*A_vec(a),4);
+           for (int b = 0;b<B_vec.rows();b++)
+           {
+              C_vec = linspace(-0.3*B_vec(b),-2.3*B_vec(b),4);
+              ROS_ERROR_COND(debug,"   b: %f", B_vec(b));
+              for (int c = 0;c<C_vec.rows();c++)
+              {
+                 D_vec = linspace(-0.8*C_vec(c),-1.2*C_vec(c),4);
+                 ROS_WARN_COND(debug,"       c: %f", C_vec(c));
+                 for (int d = 0;d<D_vec.rows();d++)
+                 {
+                  ROS_INFO_COND(debug,"            d: %f", D_vec(d));
                   pcl_analyser::Lpath lp;
                   lp.a = A_vec(a);
                   lp.b = B_vec(b);
@@ -312,36 +392,47 @@ class lpgen
       rate = 10.0;
       ros::Rate r(rate);
       sensor_msgs::PointCloud2 msg;
+      V_vec = linspace(0.3,0.9,3);
+
       A_vec = linspace(-3,-3,1);
       B_vec = linspace(7,2,5);
       C_vec = linspace(3,-3,3);
       D_vec = linspace(-0.2,0.2,4);
-      V_vec = linspace(0.3,0.9,3);
+
       fill(10);
       A_vec = linspace(3,3,1);
       B_vec = linspace(-7,-2,5);
       C_vec = linspace(3,-3,3);
       D_vec = linspace(-0.2,0.2,4);
-      V_vec = linspace(0.3,0.9,3);
+
       fill(10);
 
       A_vec = linspace(0,0,1);
-      B_vec = linspace(7,-7,5);
-      C_vec = linspace(7,-7,3);
+      B_vec = linspace(7,2,5);
+      C_vec = linspace(-7,-5,3);
       D_vec = linspace(-0.2,0.2,4);
-      V_vec = linspace(0.3,0.9,3);
+
       fill(10);
+
+      A_vec = linspace(0,0,1);
+      B_vec = linspace(-7,-2,5);
+      C_vec = linspace(7,5,3);
+      D_vec = linspace(-0.2,0.2,4);
+
+      fill(10);
+
+      fill_smart(10,-3.0,3.0,2);
 
       pcl::toROSMsg(*traceptr,msg);
       msg.header.stamp = ros::Time::now();
       msg.header.frame_id = "base_link";
-
+      writetobag();
     }
 
 
     void run()
     {
-       demo_rate = 10.0;
+       demo_rate = 1.0;
        rate = 10.0;
        ros::Rate r(rate);
        sensor_msgs::PointCloud2 msg;
@@ -378,6 +469,9 @@ class lpgen
   pcl::PointCloud<pointT>::Ptr traceptr;
   bool show;
   double demo_rate;
+  std::string path;
+  rosbag::Bag *bagptr;
+  bool debug;
 };
 
 int main(int argc, char **argv)
