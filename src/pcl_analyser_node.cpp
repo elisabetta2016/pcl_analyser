@@ -540,6 +540,7 @@ struct PointIndex {
      goal.position.y = 3;
      pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,15);
      p.handle(&path_solution_pub_,&trace_pub,goal);
+     //p.loadLUT();
   }
 
 	void TrackCallback(const donkey_rover::Rover_Track_Speed::ConstPtr& msg)

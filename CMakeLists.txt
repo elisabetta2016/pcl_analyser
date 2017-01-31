@@ -7,6 +7,7 @@ project(pcl_analyser)
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   tf
+  rosbag
   pcl_conversions
   pcl_ros
   roscpp
@@ -154,6 +155,9 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
  add_dependencies(pcl_analyser_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
+target_link_libraries(RoverPath
+    ${catkin_LIBRARIES} ${rosbag_LIBRARIES} ${rospackage_LIBRARIES}
+    )
  target_link_libraries(pcl_analyser_node RoverPath costmap
    ${catkin_LIBRARIES}
  )
@@ -163,7 +167,6 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
  target_link_libraries(path_follower
    ${catkin_LIBRARIES}
  )
- 
  target_link_libraries(fake_obs_publisher
    ${catkin_LIBRARIES}
  )

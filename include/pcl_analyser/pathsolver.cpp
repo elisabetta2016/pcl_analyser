@@ -1,6 +1,7 @@
 #include "pathsolver.h"
-
+#define foreach BOOST_FOREACH
 using namespace Eigen;
+
 //global functions
 nav_msgs::Path MatToPath(MatrixXf output_tra,std::string frame_id)
 {
@@ -55,15 +56,68 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_gri
   rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
   PointCloudPtr temp_ptr (new pcl::PointCloud<pcl::PointXYZ>);
   pathtrace_ptr = temp_ptr;
+  LUTmapPtr =  new std::multimap <LT_key,pcl_analyser::Lpath,Key_compare>();
 }
 
 pathsolver::~pathsolver()
 {
   delete rov;
+  delete LUTmapPtr;
   ROS_WARN("pathsolver instant destructed!");
 }
+
+pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy, float precision)
+{
+  typedef std::multimap <LT_key,pcl_analyser::Lpath,Key_compare>::iterator Iter;
+  LT_key key(wx,wy,precision);
+  pcl_analyser::Lookuptbl table;
+
+  std::pair<Iter,Iter> range = LUTmapPtr->equal_range(key);
+  for(Iter it = range.first; it != range.second;++it)
+  {
+    table.pathes.push_back(it->second);
+    table.quantity++;
+  }
+  return table;
+}
+
+
+void pathsolver::loadLUT()
+{
+  std::string path = ros::package::getPath("pcl_analyser") + "/config/lookuptable.bag";
+  rosbag::Bag bag;
+  bag.open(path, rosbag::bagmode::Read);
+  std::vector<std::string> topics;
+  topics.push_back(std::string("lookuptable"));
+  rosbag::View view(bag, rosbag::TopicQuery(topics));
+  foreach(rosbag::MessageInstance const m, view)
+  {
+      LUTmsgPtr = m.instantiate<pcl_analyser::Lookuptbl>();
+  }
+  bag.close();
+  if(LUTmsgPtr->quantity < 1)
+  {
+    ROS_ERROR("pathsolver: Error loading LookUp table!");
+    return;
+  }
+  int count = 0;
+  for(size_t i=0; i<LUTmsgPtr->quantity; i++)
+  {
+    pcl_analyser::Lpath lp;
+    lp = LUTmsgPtr->pathes[i];
+    LT_key key(lp.tail.position.x,lp.tail.position.y,lp.cost,1.0);
+    //std::map <LT_key,pcl_analyser::Lpath> test;
+    //test[key] = lp;
+    count++;
+    //LUTmapPtr->operator[](key) = lp;
+    LUTmapPtr->insert(std::make_pair(key,lp));
+  }
+  ROS_INFO("%d path from the lookup table loaded Successfully",count);
+}
+
 void pathsolver::handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,geometry_msgs::Pose goal_pose)
 {
+  loadLUT();
   sensor_msgs::PointCloud2 pc_msg;
   Vector3f goal;
   goal(0) = goal_pose.position.x;

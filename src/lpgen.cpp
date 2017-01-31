@@ -392,36 +392,36 @@ class lpgen
       rate = 10.0;
       ros::Rate r(rate);
       sensor_msgs::PointCloud2 msg;
-      V_vec = linspace(0.3,0.9,3);
+      V_vec = linspace(0.3,3,10);
 
       A_vec = linspace(-3,-3,1);
       B_vec = linspace(7,2,5);
       C_vec = linspace(3,-3,3);
       D_vec = linspace(-0.2,0.2,4);
 
-      fill(10);
+      fill(1);
       A_vec = linspace(3,3,1);
       B_vec = linspace(-7,-2,5);
       C_vec = linspace(3,-3,3);
       D_vec = linspace(-0.2,0.2,4);
 
-      fill(10);
+      fill(1);
 
       A_vec = linspace(0,0,1);
       B_vec = linspace(7,2,5);
       C_vec = linspace(-7,-5,3);
       D_vec = linspace(-0.2,0.2,4);
 
-      fill(10);
+      fill(1);
 
       A_vec = linspace(0,0,1);
       B_vec = linspace(-7,-2,5);
       C_vec = linspace(7,5,3);
       D_vec = linspace(-0.2,0.2,4);
 
-      fill(10);
+      fill(1);
 
-      fill_smart(10,-3.0,3.0,2);
+      fill_smart(1,-3.0,3.0,2);
 
       pcl::toROSMsg(*traceptr,msg);
       msg.header.stamp = ros::Time::now();
