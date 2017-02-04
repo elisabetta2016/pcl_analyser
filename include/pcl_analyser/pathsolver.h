@@ -14,53 +14,18 @@ using namespace std;
 class LT_key
 {
   public:
-   LT_key(float wx_,float wy_, float precision_)
+   LT_key(float w_)
    {
-      wx = wx_;
-      wy = wy_;
-      precision = fabs(precision_);
-      hasCost = false;
-      range = sqrtf(pow(wx,2)+pow(wy,2));
+      w = w_;
+      m = (int)((w - 0.0) / resolution);
    }
-   LT_key(float wx_,float wy_, float cost_, float precision_)
+   float w;
+   static const float resolution = 0.2; // meter/cell
+   int m;
+   inline bool operator<(const LT_key& other) const
    {
-      wx = wx_;
-      wy = wy_;
-      precision = fabs(precision_);
-      hasCost = true;
-      Tcost = cost_;
-      range = sqrtf(pow(wx,2)+pow(wy,2));
+     return( m < other.m);
    }
-
-
-   string Better_than(LT_key& other)
-   {
-     if (!(hasCost && other.hasCost))
-     {
-       ROS_ERROR("LT_key: one of the key has no cost to compare!");
-       return "DontKnow";
-     }
-     if(other.Tcost > Tcost)
-       return "Yes";
-     if(other.Tcost < Tcost)
-       return "No";
-     return "Boh";
-   }
-
-   /*inline bool operator<(const LT_key& other) const
-   {
-       return (other.wx - wx > precision) && (other.wx - wy > precision);
-   }*/
-   float wx,wy,precision,range;
-   float Tcost;
-   bool hasCost;
-private:
-
-};
-struct Key_compare {
-    bool operator()(const LT_key& ky1, const LT_key& ky2) const {
-        return (fabs(ky1.wx - ky2.wx)< ky2.precision) && (fabs(ky1.wy - ky2.wy)< ky2.precision);
-    }
 };
 
 struct ctrlparam
@@ -87,7 +52,7 @@ public:
   void handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,geometry_msgs::Pose goal_pose);
   nav_msgs::Path get_path();
   void loadLUT();
-  pcl_analyser::Lookuptbl readLUT(float wx, float wy, float precision);
+  pcl_analyser::Lookuptbl readLUT(float wx, float wy);
 protected:
   RoverPathClass *rov;
   int sample;
@@ -101,7 +66,7 @@ protected:
   nav_msgs::Path* resultpathptr;
   //map <LT_key,pcl_analyser::Lpath>* LUTmapPtr;
   pcl_analyser::Lookuptbl::ConstPtr LUTmsgPtr;
-  multimap<LT_key,pcl_analyser::Lpath,Key_compare>* LUTmapPtr;
+  multimap<LT_key,multimap<LT_key,pcl_analyser::Lpath> >* LUTmapPtr;
   //sensor_msgs::PointCloud2* pathtrace_pc_msg_ptr;
 private:
 

@@ -56,7 +56,7 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_gri
   rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
   PointCloudPtr temp_ptr (new pcl::PointCloud<pcl::PointXYZ>);
   pathtrace_ptr = temp_ptr;
-  LUTmapPtr =  new std::multimap <LT_key,pcl_analyser::Lpath,Key_compare>();
+  LUTmapPtr =  new std::multimap <LT_key,std::multimap <LT_key,pcl_analyser::Lpath> >();
 }
 
 pathsolver::~pathsolver()
@@ -66,18 +66,26 @@ pathsolver::~pathsolver()
   ROS_WARN("pathsolver instant destructed!");
 }
 
-pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy, float precision)
+pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy)
 {
-  typedef std::multimap <LT_key,pcl_analyser::Lpath,Key_compare>::iterator Iter;
-  LT_key key(wx,wy,precision);
+  typedef std::multimap <LT_key,std::multimap<LT_key,pcl_analyser::Lpath> >::iterator IterDD;
+  typedef std::multimap <LT_key,pcl_analyser::Lpath>::iterator IterD;
+  LT_key kyx(wx);
+  LT_key kyy(wy);
   pcl_analyser::Lookuptbl table;
 
-  std::pair<Iter,Iter> range = LUTmapPtr->equal_range(key);
-  for(Iter it = range.first; it != range.second;++it)
+  std::pair<IterDD,IterDD> range2d = LUTmapPtr->equal_range(kyx);
+  std::multimap <LT_key, pcl_analyser::Lpath> temp;
+  for(IterDD iti = range2d.first; iti != range2d.second;++iti)
   {
-    table.pathes.push_back(it->second);
-    table.quantity++;
+    std::pair<IterD,IterD> range1d = iti->second.equal_range(kyy);
+    for(IterD itj = range1d.first; itj != range1d.second; ++itj)
+    {
+      table.pathes.push_back(itj->second);
+      table.quantity++;
+    }
   }
+
   return table;
 }
 
@@ -105,12 +113,14 @@ void pathsolver::loadLUT()
   {
     pcl_analyser::Lpath lp;
     lp = LUTmsgPtr->pathes[i];
-    LT_key key(lp.tail.position.x,lp.tail.position.y,lp.cost,1.0);
+    LT_key key_x(lp.tail.position.x);
+    LT_key key_y(lp.tail.position.y);
     //std::map <LT_key,pcl_analyser::Lpath> test;
     //test[key] = lp;
     count++;
-    //LUTmapPtr->operator[](key) = lp;
-    LUTmapPtr->insert(std::make_pair(key,lp));
+    std::multimap <LT_key, pcl_analyser::Lpath> temp;
+    temp.insert(std::make_pair(key_y,lp));
+    LUTmapPtr->insert(std::make_pair(key_x,temp));
   }
   ROS_INFO("%d path from the lookup table loaded Successfully",count);
 }

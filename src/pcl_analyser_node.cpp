@@ -541,7 +541,7 @@ struct PointIndex {
      pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,15);
      //p.handle(&path_solution_pub_,&trace_pub,goal);
      p.loadLUT();
-     pcl_analyser::Lookuptbl L = p.readLUT(1.5,-0.5,0.3);
+     pcl_analyser::Lookuptbl L = p.readLUT(1.5,-0.5);
      ROS_INFO("%d pathes found",L.quantity );
      nav_msgs::Path path;
      for(int i=0;i<L.quantity;i++)
