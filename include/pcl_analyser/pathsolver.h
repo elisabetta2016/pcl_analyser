@@ -31,34 +31,7 @@ class LT_key
       Tcost = cost_;
       range = sqrtf(pow(wx,2)+pow(wy,2));
    }
-   /*
-   float getRange()
-   {
-     return range;
-   }
-   void getXY(float& wx_,float& wy_)
-   {
-     wx_= wx;
-     wy_ = wy;
-   }
-   void setTcost(float cost)
-   {
-     Tcost = cost;
-     hasCost = true;
-   }
-   bool has_cost()
-   {
-     return hasCost;
-   }
-   float getTcost()
-   {
-     if(!hasCost)
-     {
-       ROS_ERROR("LT_key: Cost has not set for this instant");
-       return 0.0;
-     }
-     return Tcost;
-   }*/
+
 
    string Better_than(LT_key& other)
    {
@@ -74,10 +47,10 @@ class LT_key
      return "Boh";
    }
 
-   inline bool operator<(const LT_key& other) const
+   /*inline bool operator<(const LT_key& other) const
    {
        return (other.wx - wx > precision) && (other.wx - wy > precision);
-   }
+   }*/
    float wx,wy,precision,range;
    float Tcost;
    bool hasCost;
@@ -86,7 +59,7 @@ private:
 };
 struct Key_compare {
     bool operator()(const LT_key& ky1, const LT_key& ky2) const {
-        return ((ky1.wx - ky2.wx)< ky1.precision) && ((ky1.wy - ky2.wy)< ky1.precision);
+        return (fabs(ky1.wx - ky2.wx)< ky2.precision) && (fabs(ky1.wy - ky2.wy)< ky2.precision);
     }
 };
 

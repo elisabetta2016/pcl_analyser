@@ -264,8 +264,8 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
   | c1  ...particle N.O. ... cn|
   | d1  ...particle N.O. ... dn|
   | v1  ...particle N.O. ... vn|
-
    */
+
   int param_no = 5;
   int particle_no,iteration;
   double pso_inertia,c_1,c_2;
