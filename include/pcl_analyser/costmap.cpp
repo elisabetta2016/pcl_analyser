@@ -18,6 +18,7 @@ costmap::costmap(double x_orig_,double y_orig_,unsigned int cell_x_size_,unsigne
     if (show_debug) ROS_INFO("costmap prints debug msgs");
     init_ = true;
     if (show_debug) ROS_INFO("costmap initialized successfully");
+    valid = false;
     //pub_ = 0;
 }
 costmap::costmap(nav_msgs::OccupancyGrid m, bool show_debug_)
@@ -33,7 +34,7 @@ costmap::costmap(nav_msgs::OccupancyGrid m, bool show_debug_)
   mat.resize(cell_x_size, std::vector<signed char> (cell_y_size, default_cost));
   VectorToMatrix(m.data);
   frame_id = m.header.frame_id;
-
+  valid = false;
   show_debug = show_debug_;
   if (show_debug) ROS_INFO("costmap prints debug msgs");
   init_ = true;
@@ -52,7 +53,7 @@ costmap::costmap(nav_msgs::OccupancyGrid::ConstPtr m, bool show_debug_)
   mat.resize(cell_x_size, std::vector<signed char> (cell_y_size, default_cost));
   VectorToMatrix(m->data);
   frame_id = m->header.frame_id;
-
+  valid = false;
   show_debug = show_debug_;
   if (show_debug) ROS_INFO("costmap prints debug msgs");
   init_ = true;
@@ -70,6 +71,10 @@ costmap::~costmap()
   init_ = false;
 }
 
+bool costmap::is_valid()
+{
+  return valid;
+}
 void costmap::UpdateFromMap(nav_msgs::OccupancyGrid m)
 {
   if(m.info.width != cell_x_size || m.info.height != cell_y_size)
@@ -209,7 +214,10 @@ nav_msgs::OccupancyGrid costmap::getROSmsg()
 void costmap::setCost(unsigned int mx,unsigned int my,signed char cost)
 {
     if(mx < cell_x_size && my < cell_y_size)
+    {
         mat[my][mx] = cost;
+        valid = true;
+    }
     else
         if(show_debug) ROS_ERROR("Out of range cell request");
 }
@@ -218,6 +226,7 @@ void costmap::setCost_WC(float wx,float wy, signed char cost)
      unsigned mx,my;
      bool k = worldToMap(wx,wy,mx,my);
      setCost(mx,my,cost);
+     valid = true;
 }
 void costmap::setCost_v(std::vector<signed char> vector,int cols)
 {
@@ -233,6 +242,7 @@ void costmap::setCost_v(std::vector<signed char> vector,int cols)
         mat[floor(i/cols)][i%cols] = vector[i];
         //ROS_WARN_STREAM("cost:  " << (int) vector[i] << "is set to i and j:  " <<floor(i/cols) <<"   and   "<< i%cols );
     }
+    valid = false;
 }
 void costmap::resetMap() 
 {
@@ -245,8 +255,9 @@ void costmap::resetMap()
             mat[i][j] = 0;
         }
     }
-    
+    valid = false;
 }
+
 void costmap::resetMap (unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn)
 {
     for(int i = x0;i< xn; i++)
@@ -255,7 +266,8 @@ void costmap::resetMap (unsigned int x0, unsigned int y0, unsigned int xn, unsig
         {
             mat[i][j] = 0;
         }
-    }    
+    }
+    valid = false;
 }
 std::vector<signed char> costmap::MatrixToVector()
 {

@@ -18,6 +18,7 @@ class costmap{
         costmap(nav_msgs::OccupancyGrid::ConstPtr m, bool show_debug_);
         costmap();
         ~costmap();
+        bool is_valid();
         float getOriginX();
         float getOriginY();
         float getResolution();
@@ -49,6 +50,7 @@ class costmap{
         float y_orig;
         float x_size;
         float y_size;
+        bool valid;
         unsigned int cell_x_size;
         unsigned int cell_y_size;
         std::vector< std::vector<signed char> > mat;
