@@ -537,12 +537,20 @@ struct PointIndex {
   {
      ROS_INFO("pcl_analyser:  Start Testing pathsolver");
      geometry_msgs::Pose goal;
-     goal.position.x = 1.5;
-     goal.position.y = -0.5;
+     std::vector<double> vec;
+     if(n_.getParam("/psogoal",vec)){
+      goal.position.x = vec[0];
+      goal.position.y = vec[1];
+     }
+     else
+     {
+       ROS_ERROR("Could not find /psogoal param");
+       goal.position.x = 1.5;
+       goal.position.y = -1.0;
+     }
      pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
-
      p.loadLUT();
-     pcl_analyser::Lookuptbl L = p.readLUT(goal.position.x,goal.position.y);
+     pcl_analyser::Lookuptbl L = p.searchLUT(goal.position.x,goal.position.y,20);
      ROS_INFO("pcl_analyser: %d pathes found",L.quantity );
      nav_msgs::Path path;
      for(int i=0;i<L.quantity;i++)

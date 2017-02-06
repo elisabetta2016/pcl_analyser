@@ -54,6 +54,7 @@ public:
   void loadLUT();
   pcl_analyser::Lookuptbl readLUT(float wx, float wy);
   void get_publishers(ros::Publisher* temp_pub_ptr);
+  pcl_analyser::Lookuptbl searchLUT(float wx,float wy,int desired_path_no);
 protected:
   RoverPathClass *rov;
   int sample;
@@ -72,6 +73,7 @@ protected:
   //sensor_msgs::PointCloud2* pathtrace_pc_msg_ptr;
   ros::Publisher* tmppubptr;
 private:
+
   pcl_analyser::Lookuptbl LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut);
   nav_msgs::Path solve(Vector3f goal);
   MatrixXf rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost);

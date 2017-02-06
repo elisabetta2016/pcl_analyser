@@ -74,6 +74,68 @@ void pathsolver::get_publishers(ros::Publisher* temp_pub_ptr)
    show_ = true;
    ROS_WARN("Showing the Path evolving!");
 }
+pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path_no)
+{
+  ROS_INFO("ciao");
+  pcl_analyser::Lookuptbl table;
+  table = readLUT(wx, wy);
+  float wx_,wy_;
+  LT_key temp(wx);
+  float res = temp.resolution;
+  wx_ = wx;
+  wy_ = wy;
+  int step =1;
+  int turn = 1; // 1: i+ 2:j+ 3:i- 4:j-
+  if (table.quantity < desired_path_no )
+  {
+    pcl_analyser::Lookuptbl table_tmp;
+    do
+    {
+      switch(turn)
+      {
+      case 1:
+         wx_ = wx_ + step*res;
+         turn++;
+         table_tmp = readLUT(wx_, wy_);
+         break;
+      case 2:
+        wy_ = wy_ + step*res;
+        turn++;
+        step++;
+        table_tmp = readLUT(wx_, wy_);
+        break;
+      case 3:
+        wx_ = wx_ - step*res;
+        turn++;
+        table_tmp = readLUT(wx_, wy_);
+        break;
+      case 4:
+        wy = wy_ - step*res;
+        turn = 1;
+        step++;
+        table_tmp = readLUT(wx_, wy_);
+        break;
+      default:
+        ROS_ERROR("pathsolver: bad implementation");
+        turn = 1;
+        break;
+      };
+      for (int i = 0; i<table_tmp.quantity;i++)
+      {
+        table.pathes.push_back(table_tmp.pathes[i]);
+        table.quantity ++;
+        if (table.quantity >= desired_path_no)
+          break;
+      }
+    }
+    while(table.quantity < desired_path_no && step < 10);
+    if(step < 10)
+      ROS_INFO("pathsolver: search successful, %d path has been collected from the look up table",table.quantity);
+    else
+      ROS_WARN("pathsolver: Only %d path has been collected from the look up table",table.quantity);
+    return table;
+  }
+}
 
 pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy)
 {
@@ -266,7 +328,7 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool
 }
 void pathsolver::init_x(MatrixXf *xptr,Vector3f goal,int particle_no)
 {
-  pcl_analyser::Lookuptbl in_range_LUT = readLUT(goal(0), goal(1));
+  pcl_analyser::Lookuptbl in_range_LUT = searchLUT(goal(0), goal(1),particle_no);
   pcl_analyser::Lpath best;
   if (in_range_LUT.quantity < 1)
   {
