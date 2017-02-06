@@ -80,7 +80,7 @@ class lpgen
        n_=node;
        LPTmsgptr = new pcl_analyser::Lookuptbl() ;
        sample = 50;
-       S_NORM = 1.5;
+       S_NORM = 1.0;
        lookahead= 0.0;
        PCL::Ptr tmp_ptr(new PCL);
        traceptr = tmp_ptr;
@@ -218,7 +218,7 @@ class lpgen
     {
       MatrixXf x;
       x.setZero(3,sample);
-      VectorXf s = linspace(0.0,1.0,sample);
+      VectorXf s = linspace(0.0,S_NORM,sample);
       float range = Q.v;
       float dt = range/sample;
       float theta = 0;

@@ -94,6 +94,8 @@ public:
 	MatrixXf Rover_vw(VectorXf V_input, VectorXf Omega_input, double b, double Ts,Vector3f x_0,Vector3f x_dot_0 , int sample, Vector3f& x_dot_f);
 	
   MatrixXf PSO_path_finder(Vector3f Goal,Vector3f Goal_arm,Vector2f V_curr_c,double Ts,int particle_no,int iteration,int piece_no_,VectorXf& output, bool& solution_found);
+
+ bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
 protected:
   ros::NodeHandle* node_Ptr;
 	costmap* master_grid_;
@@ -128,7 +130,7 @@ protected:
   void init_();
 	bool is_in_costmap(float x, float y, costmap* grid);
   void path_lookup_table(geometry_msgs::Pose goal);
-  bool is_occluded_path(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
+
 
   nav_msgs::Path PathFromEigenMat(MatrixXf in, std::string frame_id);
 

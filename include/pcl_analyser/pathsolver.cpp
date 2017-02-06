@@ -53,10 +53,12 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_gri
   master_grid_ptr = obs_grid_;
   elevation_grid_ptr = e_grid_;
   nPtr = nPtr_;
+  demo_ = false;
   rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
   PointCloudPtr temp_ptr (new pcl::PointCloud<pcl::PointXYZ>);
   pathtrace_ptr = temp_ptr;
   LUTmapPtr =  new std::multimap <LT_key,std::multimap <LT_key,pcl_analyser::Lpath> >();
+  show_ = false; // to be removed in the final version
 }
 
 pathsolver::~pathsolver()
@@ -64,6 +66,13 @@ pathsolver::~pathsolver()
   delete rov;
   delete LUTmapPtr;
   ROS_WARN("pathsolver instant destructed!");
+}
+
+void pathsolver::get_publishers(ros::Publisher* temp_pub_ptr)
+{
+   tmppubptr = temp_pub_ptr;
+   show_ = true;
+   ROS_WARN("Showing the Path evolving!");
 }
 
 pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy)
@@ -89,6 +98,32 @@ pcl_analyser::Lookuptbl pathsolver::readLUT(float wx, float wy)
   return table;
 }
 
+pcl_analyser::Lookuptbl pathsolver::LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut) //Cleaning path lookuptable
+{
+  size_t path_no = lut.quantity;
+  pcl_analyser::Lookuptbl lut_clean;
+  bool occluded_path = false;
+  for(size_t i=0;i<path_no;i++)
+  {//loop all the paths
+    for(int j=0; j < lut.pathes[i].path.poses.size(); j++)
+    {// loop the samples
+        if(rov->is_occluded_point(lut.pathes[i].path.poses[j].pose,Goal))
+        {
+          occluded_path = true;
+          break;
+        }
+    }
+    if (!occluded_path)
+    {
+      lut_clean.pathes.push_back(lut.pathes[i]);
+      lut_clean.quantity++;
+    }
+    //if (occluded_path) CPinfo.bad_it.push_back(i); // save the address of occluded paths
+    occluded_path = false;
+  }
+  ROS_INFO_COND(demo_,"%d path out of %d are ok for arm",lut_clean.quantity,lut.quantity);
+  return lut_clean;
+}
 
 void pathsolver::loadLUT()
 {
@@ -130,8 +165,8 @@ void pathsolver::handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,g
   loadLUT();
   sensor_msgs::PointCloud2 pc_msg;
   Vector3f goal;
-  goal(0) = goal_pose.position.x;
-  goal(1) = goal_pose.position.y;
+  goal(0) = (float) goal_pose.position.x;
+  goal(1) = (float) goal_pose.position.y;
   goal(2) = 0; // orientation later
   nav_msgs::Path path_msg = solve(goal);
   path_pub->publish(path_msg);
@@ -171,6 +206,7 @@ MatrixXf pathsolver::compute_tra(float a,float b,float c,float d,float v,float s
 
 MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost)
 {
+  //ROS_WARN("pathsolver: path a:%3f b%3f c:%3f d:%f l:%f",Q.a,Q.b,Q.c,Q.d,Q.v);
   MatrixXf x;
   x.setZero(3,sample);
   VectorXf s = linspace(0.0,s_max,sample);
@@ -199,7 +235,13 @@ MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& ta
       tail.orientation = tf::createQuaternionMsgFromYaw(x(2,i));
     }
   }
-
+  if (show_)
+  {
+    ROS_WARN("Showing pass evolution");
+    nav_msgs::Path msg = MatToPath(x,"base_link");
+    tmppubptr->publish(msg);
+    ros::Duration(0.1).sleep();
+  }
   return x;
 }
 
@@ -218,23 +260,46 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool
   // Chassis cost term to be added
   // Arm energy consumption based on path to be calculated and added
   J = J_0 + J_1 + travelcost;
-  ROS_INFO("cost of current path is %f",J);
+  ROS_INFO_COND(demo_,"cost of current path is %f",J);
   if (cost.Lethal_cost < 1) solution_found = true;
   return J;
 }
-void pathsolver::init_x(MatrixXf *xptr)
+void pathsolver::init_x(MatrixXf *xptr,Vector3f goal,int particle_no)
 {
-  float a = 0.0;
-  float b = 10.0;
-  float c = -10.0;
-  float d = 1.0;
-  float v = 1.0;
+  pcl_analyser::Lookuptbl in_range_LUT = readLUT(goal(0), goal(1));
+  pcl_analyser::Lpath best;
+  if (in_range_LUT.quantity < 1)
+  {
+    ROS_ERROR("Look up no init guess is found");
+    best.a = 0;
+    best.b = 0;
+    best.c = 0;
+    best.d = 0;
+    best.v = 1;
+  }
+  else
+    best = in_range_LUT.pathes[0];
+
+  for(int i=1;i<in_range_LUT.quantity;i++)
+  {
+     if(in_range_LUT.pathes[i].cost < best.cost)
+       best = in_range_LUT.pathes[i];
+  }
   // more suffisticated initialization would be implemented :)
-  xptr->coeffRef(0,0) = a;
-  xptr->coeffRef(1,0) = b;
-  xptr->coeffRef(2,0) = c;
-  xptr->coeffRef(3,0) = d;
-  xptr->coeffRef(4,0) = v;
+  xptr->coeffRef(0,0) = best.a;
+  xptr->coeffRef(1,0) = best.b;
+  xptr->coeffRef(2,0) = best.c;
+  xptr->coeffRef(3,0) = best.d;
+  xptr->coeffRef(4,0) = best.v;
+  int max_ = std::min((int)in_range_LUT.quantity, particle_no);
+  for (int i = 1; i < max_;i++)
+  {
+    xptr->coeffRef(0,i) = in_range_LUT.pathes[i].a;
+    xptr->coeffRef(1,i) = in_range_LUT.pathes[i].b;
+    xptr->coeffRef(2,i) = in_range_LUT.pathes[i].c;
+    xptr->coeffRef(3,i) = in_range_LUT.pathes[i].d;
+    xptr->coeffRef(4,i) = in_range_LUT.pathes[i].v;
+  }
 }
 void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2)
 {
@@ -285,7 +350,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
   v.setZero(param_no,particle_no);
 
   //find_init_control(Goal_arm, particle_no, piece_no,x);
-  init_x(&x);
+  init_x(&x,goal,particle_no);
   VectorXf x_best(param_no);
   VectorXf G(param_no);
   MatrixXf output_tra;
@@ -300,7 +365,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
      G(i) = x(i,0);
   }
   x_best = G;
-  float s_max = 1.5;
+  float s_max = 1.0; // should be compatible with lpgem
   float J = 0;
   for (size_t k = 0; k < iteration; k++)
   {
@@ -316,7 +381,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
       Q.fill_in(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i));
       tra = rover_tra(Q,s_max,tail,travelcost);
       //tra = compute_tra(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i),s_max); deprecated
-      ROS_WARN_STREAM("current tra:\n" << tra);
+      ROS_WARN_STREAM_COND(demo_,"current tra:\n" << tra);
       Tra_to_cloud(tra,pathtrace_ptr);
       float Ob_func = compute_J(&tra,travelcost,goal,solution_found);
       //Best particle in the current iteration

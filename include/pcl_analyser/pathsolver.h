@@ -53,6 +53,7 @@ public:
   nav_msgs::Path get_path();
   void loadLUT();
   pcl_analyser::Lookuptbl readLUT(float wx, float wy);
+  void get_publishers(ros::Publisher* temp_pub_ptr);
 protected:
   RoverPathClass *rov;
   int sample;
@@ -61,6 +62,7 @@ protected:
   costmap *master_grid_ptr;
   costmap *elevation_grid_ptr;
   bool demo_;
+  bool show_;
   ros::NodeHandle* nPtr;
   PointCloudPtr pathtrace_ptr;
   nav_msgs::Path* resultpathptr;
@@ -68,12 +70,13 @@ protected:
   pcl_analyser::Lookuptbl::ConstPtr LUTmsgPtr;
   multimap<LT_key,multimap<LT_key,pcl_analyser::Lpath> >* LUTmapPtr;
   //sensor_msgs::PointCloud2* pathtrace_pc_msg_ptr;
+  ros::Publisher* tmppubptr;
 private:
-
+  pcl_analyser::Lookuptbl LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut);
   nav_msgs::Path solve(Vector3f goal);
   MatrixXf rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost);
   MatrixXf compute_tra(float a,float b,float c,float d,float v,float s_max);
-  void init_x(MatrixXf *xptr);
+  void init_x(MatrixXf *xptr,Vector3f goal,int particle_no);
   float compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool& solution_found);
   void init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2);
 };

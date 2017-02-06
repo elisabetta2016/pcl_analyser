@@ -535,21 +535,30 @@ struct PointIndex {
 	
   void test_pathsolver()
   {
+     ROS_INFO("pcl_analyser:  Start Testing pathsolver");
      geometry_msgs::Pose goal;
-     goal.position.x = 2;
-     goal.position.y = 3;
-     pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,15);
-     //p.handle(&path_solution_pub_,&trace_pub,goal);
+     goal.position.x = 1.5;
+     goal.position.y = -0.5;
+     pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
+
      p.loadLUT();
-     pcl_analyser::Lookuptbl L = p.readLUT(1.5,-0.5);
-     ROS_INFO("%d pathes found",L.quantity );
+     pcl_analyser::Lookuptbl L = p.readLUT(goal.position.x,goal.position.y);
+     ROS_INFO("pcl_analyser: %d pathes found",L.quantity );
      nav_msgs::Path path;
      for(int i=0;i<L.quantity;i++)
      {
+       ROS_INFO("pcl_analyser: %d path a:%3f b%3f c:%3f d:%f l:%f",i,L.pathes[i].a,L.pathes[i].b,L.pathes[i].c,L.pathes[i].d,L.pathes[i].v);
        path = L.pathes[i].path;
        path.header.stamp = ros::Time::now();
        path_colision_pub_.publish(path);
+       ros::Duration(0.5).sleep();
      }
+     ROS_INFO("pcl_analyser: Initial guess published, Start runing the PSO");
+
+     p.get_publishers(&path_pub_);
+
+     p.handle(&path_solution_pub_,&trace_pub,goal);
+     ROS_INFO("PSO Done!");
   }
 
 	void TrackCallback(const donkey_rover::Rover_Track_Speed::ConstPtr& msg)
@@ -716,7 +725,7 @@ struct PointIndex {
 		ros::Duration(0.4).sleep();
     ros::Time curr_time, last_time;
     last_time = ros::Time::now();
-		
+    bool run = true;
 		while(ros::ok())
 		{
 			
@@ -788,11 +797,14 @@ struct PointIndex {
       //Calling test functions
       curr_time = ros::Time::now();
       //test_lookuptable_class();
-      if((curr_time - last_time).toSec() > 2.00)
+      //if((curr_time - last_time).toSec() > 2.00)
+      if(run)
       {
+
         test_pathsolver();
+        run = false;
         //test_PSO();
-        last_time = curr_time;
+        //last_time = curr_time;
       }
 
       // End Calling Test functions
@@ -809,7 +821,7 @@ struct PointIndex {
       path_trace.header.stamp = ros::Time::now();
       path_trace_pub_.publish(path_trace);
       */
-			rate.sleep();
+      rate.sleep();
 			ros::spinOnce ();
 						
 		}
