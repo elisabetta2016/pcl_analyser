@@ -208,6 +208,7 @@ class lpgen
       msg.header.stamp = ros::Time::now();
       ros::Rate r(demo_rate);
       pathpub.publish(msg);
+
       r.sleep();
       if(!n_.ok()) return msg;
     }
@@ -250,9 +251,10 @@ class lpgen
        msg.header.frame_id = "base_link";
        msg.header.stamp = ros::Time::now();
        ros::Rate r(demo_rate);
-       pathpub.publish(msg);
-
        r.sleep();
+       pathpub.publish(msg);
+       //ROS_WARN("Published");
+
        if(!n_.ok()) return msg;
       }
       return msg;
@@ -432,14 +434,20 @@ class lpgen
 
     void run()
     {
-       demo_rate = 1.0;
+       demo_rate = 50.0;
        rate = 10.0;
        ros::Rate r(rate);
        sensor_msgs::PointCloud2 msg;
+       ros::Duration(1.00).sleep();
+
        fill(10);
+       ROS_INFO("Done");
+       /*
        pcl::toROSMsg(*traceptr,msg);
+
        msg.header.stamp = ros::Time::now();
        msg.header.frame_id = "base_link";
+
        while(n_.ok())
        {
          //test();
@@ -447,7 +455,7 @@ class lpgen
          cloudpub.publish(msg);
          r.sleep();
          ros::spinOnce();
-       }
+       }*/
 
     }
 
@@ -486,6 +494,71 @@ int main(int argc, char **argv)
   {
   case 2:
     tt.gen();
+    break;
+  case 3:
+
+    if (atoi(argv[2])==1)
+    {
+      V_vec.resize(1);
+      V_vec(0) = 1;
+
+      A_vec = linspace(-3,-3,1);
+      B_vec = linspace(7,2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(0,0,1);
+      tt.run();
+      A_vec = linspace(3,3,1);
+      B_vec = linspace(-7,-2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(0,0,1);
+      V_vec(0) = 1;
+      tt.run();
+    }
+    if (atoi(argv[2])==2)
+    {
+      V_vec.resize(1);
+      V_vec(0) = 1;
+      A_vec = linspace(-3,-3,1);
+      B_vec = linspace(7,2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(0.2,-0.2,3);
+      tt.run();
+      A_vec = linspace(3,3,1);
+      B_vec = linspace(-7,-2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(0.2,-0.2,3);
+      V_vec(0) = 1;
+      tt.run();
+    }
+    if (atoi(argv[2])==3)
+    {
+      V_vec = linspace(0.5,1.0,4);
+      A_vec = linspace(-3,-3,1);
+      B_vec = linspace(7,2,5);
+      C_vec = linspace(3,-3,3);
+      D_vec = linspace(0,0,1);
+      tt.run();
+    }
+    if (atoi(argv[2])==4)
+    {
+      V_vec.resize(1);
+      V_vec(0) = 1;
+      A_vec = linspace(0,-0,1);
+      B_vec = linspace(1,-1,3);
+      C_vec = linspace(5,-5,5);
+      D_vec = linspace(0.5,-0.5,4);
+      tt.run();
+    }
+    if (atoi(argv[2])==5)
+    {
+      V_vec.resize(1);
+      V_vec(0) = 1;
+      A_vec = linspace(0,1,5);
+      B_vec = linspace(33,30,1);
+      C_vec = linspace(-82,-89,1);
+      D_vec = linspace(41.5,43,1);
+      tt.run();
+    }
     break;
   case 6:
     b_min = atof(argv[1]);
@@ -546,6 +619,7 @@ int main(int argc, char **argv)
     D_vec = linspace(d_min,d_max,step_d);
     ROS_INFO("a = [%f  %d steps  %f]",a_min,step_a,a_max);
     ROS_INFO("b = [%f  %d steps  %f]",b_min,step_b,b_max);
+    ROS_WARN_STREAM("B_vec:\n" << B_vec << "\nC_vec:\n" << C_vec);
     ROS_INFO("c = [%f  %d steps  %f]",c_min,step_c,c_max);
     ROS_INFO("d = [%f  %d steps  %f]",d_min,step_d,d_max);
     V_vec.resize(1);

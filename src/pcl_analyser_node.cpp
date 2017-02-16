@@ -361,7 +361,8 @@ struct PointIndex {
 		VectorXf Poses;
 		if(!first_elevation_received) //!first_elevation_received
 		{
-      Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg,ecostmap_meta);
+      MatrixXf arm;
+      Rov.Chassis_simulator(tra, elevation_grid_, 3.5,arm, Poses, Poses_msg,ecostmap_meta);
 			ChassisPose_pub_.publish(Poses_msg);
 		}
 

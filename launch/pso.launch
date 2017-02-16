@@ -5,13 +5,13 @@
     	<param name="LETHAL_radius" type="double" value="0.1" />
     	<param name="INFLATION_radius" type="double" value="0.3" />
     	
-    	<param name="pso_inertia" type="double" value="0.4" />
+        <param name="pso_inertia" type="double" value="0.1" />
     	<param name="pso_c1" type="double" value="0.30" />
-    	<param name="pso_c2" type="double" value="0.40" />
+        <param name="pso_c2" type="double" value="0.10" />
     	<param name="pso_speed_gain" value="20.0" />
     	<param name="pso_goal_gain"  value="20.00" />
     	<param name="pso_cost_gain"  value="1.00" />
-    	<param name="pso_particle_no"  value="10" />
+        <param name="pso_particle_no"  value="30" />
         <param name="pso_iteration"  value="10" />
         <param name="path_piece_no"  value="5" />
         <param name="omega_x"  value="0.4" />

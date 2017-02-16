@@ -4,6 +4,14 @@ unsigned char const UNKOWN = 255;
 unsigned char const FREE = 0;
 unsigned char const OCC = 100;
 
+int SGN(float x)
+{
+  if (x > 0)
+    return 1;
+  if (x < 0)
+    return -1;
+  return 0;
+}
 void V_Print(vector<pair<unsigned int,unsigned int> > v, string name)
 {
    ROS_WARN_STREAM(name << " size is: " <<v.size());
@@ -13,10 +21,11 @@ void V_Print(vector<pair<unsigned int,unsigned int> > v, string name)
       cout << v[i].first << " ,  "<< v[i].second << "\n";
    }
 }
-cnmap::cnmap(costmap *base_map_ptr, int scale, bool debug_)
+cnmap::cnmap(costmap *base_map_ptr, int scale_, bool debug_)
 {
    base_ptr = base_map_ptr;
    debug = debug_;
+   scale = scale_;
    if(!base_ptr->is_initialized())
    {
      ROS_WARN("cnmap: the costmap instant is not initialized");
@@ -31,6 +40,17 @@ cnmap::cnmap(costmap *base_map_ptr, int scale, bool debug_)
    home_ = false;
    DUL_init = false;
 }
+cnmap::cnmap(ros::NodeHandle *n_ptr, string map_topic_name, int scale_, bool debug_)
+{
+   debug = debug_;
+   init_ = false;
+   scale = scale_;
+   map_sub  = n_ptr->subscribe(map_topic_name, 1, &cnmap::map_cb,this);
+   map_pub = n_ptr->advertise<nav_msgs::OccupancyGrid>("cnmap", 10);
+   home_ = false;
+   DUL_init = false;
+}
+
 cnmap::cnmap()
 {
   init_ = false;
@@ -40,6 +60,81 @@ cnmap::~cnmap()
 {
   ROS_WARN("cnmap instant destructed!");
   delete base_ptr,self_ptr;
+}
+void cnmap::map_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+{
+  ROS_WARN("MAP!!!");
+  if(!init_)
+  {
+      base_ptr = new costmap(msg,false);
+      unsigned int mx_new,my_new;
+      base_ptr->get_costmap_size_in_cell(mx_new,my_new);
+      mx_new = floor(mx_new/scale);
+      my_new = floor(my_new/scale);
+      self_ptr = new costmap(base_ptr->getOriginX(),base_ptr->getOriginY(),mx_new,my_new,base_ptr->getResolution()*scale,base_ptr->frame_id,false);
+      init_ = true;
+  }
+  else
+  {
+    base_ptr->UpdateFromMap(*msg);
+    update();
+  }
+}
+geometry_msgs::Pose cnmap::find_discovered(float wx,float wy)
+{
+  double hx,hy;
+  geometry_msgs::Pose msg;
+  self_ptr->mapToWorld(home_cell.first,home_cell.second,hx,hy);
+  float dx = wx-hx;
+  float dy = wy-hy;
+
+  bool cell_found = false;
+  float x = hx;
+  float y = hy;
+  int count =0;
+
+  float x_step,y_step;
+  if (fabs(dx) > fabs(dy))
+  {
+    x_step = SGN(dx)*pow(self_ptr->getResolution(),2)/fabs(dy);
+    y_step = SGN(dy)*self_ptr->getResolution();
+  }
+  else
+  {
+    x_step = SGN(dx)*self_ptr->getResolution();
+    y_step = SGN(dy)*fabs(dx*self_ptr->getResolution()/dy);
+  }
+
+  ROS_INFO("x_step: %f, y_step: %f,       dx:%f, dy:%f",x_step,y_step,dx,dy);
+  while (!cell_found)
+  {
+    x += x_step;
+    y += y_step;
+    signed char cost = self_ptr->getCost_WC(x,y);
+    if (cost != 0 || count > 120)
+    {
+      ROS_INFO("FOUND A SOLUTION");
+      cell_found = true;
+      //debug
+      //self_ptr->setCost_WC(x,y,100);
+      //publish_ROS();
+      //ros::Duration(1.0).sleep();
+      //debug end
+      break;
+    }
+    //self_ptr->setCost_WC(x,y,100);
+    //publish_ROS();
+    //ros::Duration(1.0).sleep();
+    count ++;
+  }
+  ROS_WARN("requested x: %3f, y:%3f", wx,wy);
+  ROS_ERROR("found x:%3f and y:%3f", x,y);
+  x -= x_step;
+  y -= y_step;
+  ROS_INFO("found x:%3f and y:%3f", x,y);
+  msg.position.x = x;
+  msg.position.y = y;
+  return msg;
 }
 
 void cnmap::update(){
@@ -137,6 +232,13 @@ void cnmap::publish_ROS(ros::Publisher *pubPtr_)
   nav_msgs::OccupancyGrid msg = self_ptr->getROSmsg();
   pubPtr_->publish(msg);
 }
+void cnmap::publish_ROS()
+{
+  if(!init_) return;
+  if(!base_ptr->is_initialized()) return;
+  map_pub.publish(self_ptr->getROSmsg());
+}
+
 void cnmap::check_surrouding_cells(int mx,int my)
 {
   unsigned int a,b;

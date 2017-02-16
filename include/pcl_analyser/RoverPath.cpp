@@ -504,7 +504,7 @@ void RoverPathClass::traj_to_cloud(MatrixXf tra)
 }
 	
 //updated function
-float RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
+float RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double map_scale, MatrixXf& Arm, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta)
 {
   float cost = 0.0;
 	int vector_size = Path.cols();
@@ -520,7 +520,7 @@ float RoverPathClass::Chassis_simulator(MatrixXf Path, costmap *e_grid, double m
 	MatrixXf FrontLeftTrack;
 	MatrixXf RearRightTrack;
 	MatrixXf RearLeftTrack;
-	MatrixXf Arm;
+  //MatrixXf Arm;
 	int mx,my;
 	Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
 	

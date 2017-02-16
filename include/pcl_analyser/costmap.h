@@ -28,6 +28,7 @@ class costmap{
         bool  worldToMap (float wx, float wy,size_t& mx, size_t& my);
         void  worldToMapEnforceBounds (double wx, double wy, int &mx, int &my);
         bool  Is_in_map(int mx,int my);
+        bool  Is_in_map_WC(float wx,float wy);
         void  mapToWorld(unsigned int mx, unsigned int my, double& wx, double& wy);
         signed char getCost(unsigned int mx,unsigned int my);
         signed char getCost_WC(float wx,float wy); //cost from world coordinates

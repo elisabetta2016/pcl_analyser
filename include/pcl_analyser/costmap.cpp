@@ -312,3 +312,7 @@ bool costmap::Is_in_map(int mx,int my){
     return false;
   return true;
 }
+bool costmap::Is_in_map_WC(float wx,float wy){
+  size_t mx,my;
+  return worldToMap(wx,wy,mx,my);
+}

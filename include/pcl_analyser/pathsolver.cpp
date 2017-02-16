@@ -78,13 +78,13 @@ pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path
 {
   ROS_INFO("ciao");
   pcl_analyser::Lookuptbl table;
-  table = readLUT(wx, wy);
+  //table = readLUT(wx, wy);
   float wx_,wy_;
   LT_key temp(wx);
   float res = temp.resolution;
   wx_ = wx;
   wy_ = wy;
-  int step =1;
+  int step =0;
   int turn = 1; // 1: i+ 2:j+ 3:i- 4:j-
   if (table.quantity < desired_path_no )
   {
@@ -122,8 +122,11 @@ pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path
       };
       for (int i = 0; i<table_tmp.quantity;i++)
       {
-        table.pathes.push_back(table_tmp.pathes[i]);
-        table.quantity ++;
+        signed char cost = master_grid_ptr->getCost_WC(table_tmp.pathes[i].tail.position.x, table_tmp.pathes[i].tail.position.y);
+        if (cost == 0) {
+          table.pathes.push_back(table_tmp.pathes[i]);
+          table.quantity ++;
+        }
         if (table.quantity >= desired_path_no)
           break;
       }
@@ -239,6 +242,27 @@ void pathsolver::handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,g
   pathtrace_pub->publish(pc_msg);
   resultpathptr = &path_msg;
 }
+
+void pathsolver::handle(ros::NodeHandle* n_ptr,geometry_msgs::Pose goal_pose)
+{
+  ros::Publisher path_pub = n_ptr->advertise <nav_msgs::Path>("/pathlover_out",1);
+  ros::Subscriber ele_meta_sub = n_ptr->subscribe("/elevation_costmap_MetaData", 1, &pathsolver::EleMetaCallback,this);
+  loadLUT();
+  sensor_msgs::PointCloud2 pc_msg;
+  Vector3f goal;
+  goal(0) = (float) goal_pose.position.x;
+  goal(1) = (float) goal_pose.position.y;
+  goal(2) = 0; // orientation later
+  nav_msgs::Path path_msg = solve(goal);
+  path_pub.publish(path_msg);
+
+  resultpathptr = &path_msg;
+}
+
+void pathsolver::EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg)
+{
+  ecostmap_meta_ptr = msg;
+}
 nav_msgs::Path pathsolver::get_path()
 {
   nav_msgs::Path msg = *resultpathptr;
@@ -299,7 +323,7 @@ MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& ta
   }
   if (show_)
   {
-    ROS_WARN("Showing pass evolution");
+    ROS_WARN_ONCE("Showing pass evolution");
     nav_msgs::Path msg = MatToPath(x,"base_link");
     tmppubptr->publish(msg);
     ros::Duration(0.1).sleep();
@@ -307,24 +331,29 @@ MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& ta
   return x;
 }
 
-float pathsolver::compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool& solution_found)
+float pathsolver::compute_J(MatrixXf *traptr,Vector3f arm_goal,float travelcost,VectorXf Goal,bool& solution_found)
 {
-  float J = 0.0;
+  float C = 0.0;
   Vector3f tra_tail;
   tra_tail(0) = traptr->coeffRef(0,traptr->cols()-1);
   tra_tail(1) = traptr->coeffRef(1,traptr->cols()-1);
   PATH_COST cost = rov->Cost_of_path(*traptr, master_grid_ptr);
-
-  float J_0 = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
-  float J_1 = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
+  //calculating rover parts trajectories
+  MatrixXf arm_tra;
+  geometry_msgs::PoseArray Poses_msg;
+  VectorXf Poses;
+  float J_goal = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
+  float h_obs = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
+  float J_chass = rov->Chassis_simulator(*traptr, elevation_grid_ptr, 3.5, arm_tra, Poses, Poses_msg,*ecostmap_meta_ptr);
+  float J_arm = rov->Arm_energy(arm_tra,arm_goal);
   //float Ob_func_3 = fabs(x(0,0) - prop_speed);			      		     // speed effect
   // Goal distance cost can be evaluated using cnmap now
   // Chassis cost term to be added
   // Arm energy consumption based on path to be calculated and added
-  J = J_0 + J_1 + travelcost;
-  ROS_INFO_COND(demo_,"cost of current path is %f",J);
+  C = J_goal + h_obs + travelcost;
+  ROS_INFO_COND(demo_,"cost of current path is %f",C);
   if (cost.Lethal_cost < 1) solution_found = true;
-  return J;
+  return C;
 }
 void pathsolver::init_x(MatrixXf *xptr,Vector3f goal,int particle_no)
 {
@@ -445,7 +474,9 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
       //tra = compute_tra(x(0,i),x(1,i),x(2,i),x(3,i),x(4,i),s_max); deprecated
       ROS_WARN_STREAM_COND(demo_,"current tra:\n" << tra);
       Tra_to_cloud(tra,pathtrace_ptr);
-      float Ob_func = compute_J(&tra,travelcost,goal,solution_found);
+      Vector3f arm_goal;
+      arm_goal << 0.0,0.0,0.0;
+      float Ob_func = compute_J(&tra,arm_goal,travelcost,goal,solution_found);
       //Best particle in the current iteration
       if (Ob_func < x_best_cost)
       {

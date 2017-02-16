@@ -50,6 +50,7 @@ public:
   pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_grid_,double b, float Ts_, int sample_);
   ~pathsolver();
   void handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,geometry_msgs::Pose goal_pose);
+  void handle(ros::NodeHandle* n_ptr, geometry_msgs::Pose goal_pose);
   nav_msgs::Path get_path();
   void loadLUT();
   pcl_analyser::Lookuptbl readLUT(float wx, float wy);
@@ -73,14 +74,15 @@ protected:
   //sensor_msgs::PointCloud2* pathtrace_pc_msg_ptr;
   ros::Publisher* tmppubptr;
 private:
-
+  hector_elevation_visualization::EcostmapMetaData::Ptr ecostmap_meta_ptr;
   pcl_analyser::Lookuptbl LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut);
   nav_msgs::Path solve(Vector3f goal);
   MatrixXf rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost);
   MatrixXf compute_tra(float a,float b,float c,float d,float v,float s_max);
   void init_x(MatrixXf *xptr,Vector3f goal,int particle_no);
-  float compute_J(MatrixXf *traptr,float travelcost,VectorXf Goal,bool& solution_found);
+  float compute_J(MatrixXf *traptr, Vector3f arm_goal, float travelcost, VectorXf Goal, bool& solution_found);
   void init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2);
+  void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg);
 };
 
 #endif // PATHSOLVER_H

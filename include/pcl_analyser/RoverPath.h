@@ -81,11 +81,13 @@ public:
 
   bool is_occluded_point(geometry_msgs::Pose Pose,geometry_msgs::Pose Goal);
 
-  float Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
+  float Chassis_simulator(MatrixXf Path, costmap* grid, double map_scale, MatrixXf& Arm, VectorXf& Poses,geometry_msgs::PoseArray& msg, hector_elevation_visualization::EcostmapMetaData ecostmap_meta);
 
 	void Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm);
 
-	Matrix3f TranMatrix2D(float theta, float t_x, float t_y);
+  float Arm_energy(MatrixXf Path, Vector3f goal);
+
+  Matrix3f TranMatrix2D(float theta, float t_x, float t_y);
 	
 	pcl::PointCloud<pcl::PointXYZ> get_path_trace_cloud();
 	
@@ -142,6 +144,6 @@ protected:
   void find_init_control(Vector3f Goal, int particle_no, int& piece_no,MatrixXf& x);
   void shortenLTpaths(geometry_msgs::Pose Goal);
   geometry_msgs::Pose EigVecToPose(Vector3f in);
-  float Arm_energy(MatrixXf Path, Vector3f goal);
+
 };
 #endif 
