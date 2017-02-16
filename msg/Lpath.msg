@@ -1,0 +1,9 @@
+int32 id
+float64 a
+float64 b
+float64 c
+float64 d
+float64 v
+float64 cost
+geometry_msgs/Pose tail
+nav_msgs/Path path

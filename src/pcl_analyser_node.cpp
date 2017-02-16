@@ -50,7 +50,8 @@
  #include <Eigen/Dense> 
 
  #include "RoverPath.h"
- #include "costmap.h" 
+ #include "costmap.h"
+ #include "pathsolver.h"
  #include <vector>
 
 //#defs
@@ -94,7 +95,23 @@ struct PointIndex {
  double Watching_hor = 3.0; //Default value
 
 
-class ObstacleDetectorClass
+ nav_msgs::Path MatToPath(MatrixXf output_tra,std::string frame_id)
+ {
+    nav_msgs::Path robot_opt_path;
+    int sample = output_tra.cols();
+    robot_opt_path.header.stamp = ros::Time::now();
+    robot_opt_path.header.frame_id = frame_id;
+    robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
+    for(size_t i=0; i < sample; i++)
+    {
+        robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
+        robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
+        robot_opt_path.poses[i].pose.position.z = 0.0;
+    }
+    return robot_opt_path;
+ }
+
+ class ObstacleDetectorClass
 {
 	public:
 		
@@ -105,7 +122,7 @@ class ObstacleDetectorClass
       n_pr = n_pr_temp;
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
-			subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
+      //subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
 			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
 			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
 			subFromElevationCostmapMeta_ = n_.subscribe("/elevation_costmap_MetaData", 1, &ObstacleDetectorClass::EleMetaCallback,this);
@@ -113,7 +130,6 @@ class ObstacleDetectorClass
       obstcle_pub_		    = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-      path_trace_pub_     = n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1);
       repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
 			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
       path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
@@ -122,6 +138,8 @@ class ObstacleDetectorClass
       ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
       Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
       Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
+      path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
+      trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
       /*
       // Range image params
     			
@@ -285,90 +303,6 @@ class ObstacleDetectorClass
 		Elevation_pub_.publish(elevation_grid_->getROSmsg());
 		
 	}
-
-  void test_lookuptable()
-  {
-    int sample_L = 13;
-    double Ts_L = 3.00;
-    int path_number;
-    PointCloudVar PC;
-    //ros::NodeHandle n_pr("~");
-    sensor_msgs::PointCloud2 PC_msg;
-    MatrixXf tra;
-
-    tra.setZero( 3, sample_L);
-    VectorXf V_in(sample_L);
-    VectorXf Omega_in(sample_L);
-    Vector3f x_0,x_dot_0,x_dot_f;
-
-    x_0 << 0.0,0.0,0.0;
-    x_dot_0 << 0.0,0.0,0.0;
-
-    RoverPathClass Rov(0.0, sample_L,master_grid_);
-    std::vector<double> v_vector;
-    std::vector<double> o_vector;
-    n_pr.getParam("V_1", v_vector);
-    n_pr.getParam("path_number", path_number);
-
-    V_in = FromSTDvector(v_vector);
-    std::ostringstream j_no;
-    std::string temp;
-
-    nav_msgs::Path temp_path;
-    for(int j=0;j < path_number;j++)
-    {
-      j_no.str("");
-      j_no.clear();
-      j_no << j;
-      temp = "O_" + j_no.str();
-      //ROS_WARN("String is %s", temp);
-      //std::cout << temp << "\n";
-
-      n_pr.getParam("O_"+j_no.str(), o_vector);
-
-      Omega_in = FromSTDvector(o_vector);
-
-      tra = Rov.Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
-      temp_path = PathFromEigenMat(tra, "base_link");
-      path_vector.push_back(temp_path);
-
-
-      PointXYZ point;
-      for(size_t i=0; i<tra.cols();i++)
-      {
-        point.x = tra(0,i);
-        point.y = tra(1,i);
-        point.z = 0.0;
-
-        PC.push_back(point);
-
-      }
-
-      // -Omega
-      tra.setZero();
-      tra = Rov.Rover_vw(V_in,-Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);
-
-      temp_path = PathFromEigenMat(tra, "base_link");
-      path_vector.push_back(temp_path);
-
-      for(size_t i=0; i<tra.cols();i++)
-      {
-        point.x = tra(0,i);
-        point.y = tra(1,i);
-        point.z = 0.0;
-
-        PC.push_back(point);
-
-      }
-
-    }
-
-    pcl::toROSMsg(PC,PC_msg);
-    PC_msg.header.stamp = ros::Time::now();
-    PC_msg.header.frame_id = "base_link";
-    lookuppath_pub_.publish(PC_msg);
-
-  }
 	
   void test_chassis_sim()
 	{
@@ -387,7 +321,7 @@ class ObstacleDetectorClass
 		Vector3f x_0,x_dot_0,x_dot_f;
 		x_0 << 0.0,0.0,0.0;
 		x_dot_0 << 0.0,0.0,0.0;
-    RoverPathClass Rov(0.0, sample_L,master_grid_,elevation_grid_);
+    RoverPathClass Rov(0.0, sample_L,&n_pr,master_grid_,elevation_grid_);
 
 		std::vector<double> v_vector;
 		std::vector<double> o_vector;
@@ -427,7 +361,8 @@ class ObstacleDetectorClass
 		VectorXf Poses;
 		if(!first_elevation_received) //!first_elevation_received
 		{
-      Rov.Chassis_simulator(tra, elevation_grid_, 3.5, Poses, Poses_msg,ecostmap_meta);
+      MatrixXf arm;
+      Rov.Chassis_simulator(tra, elevation_grid_, 3.5,arm, Poses, Poses_msg,ecostmap_meta);
 			ChassisPose_pub_.publish(Poses_msg);
 		}
 
@@ -438,151 +373,44 @@ class ObstacleDetectorClass
 		
 	}
 
-	void testcallback()
-	{
-		double Ts = 3.00;
-		Vector2f V_curr_c;
-  		V_curr_c(0) = 0.8;
-  		V_curr_c(1) = 0.3;
-		nav_goal(0) = 2.0;
-  		nav_goal(1) = 1.0;
-  		nav_goal(2) = 0.0;
-		int sample_ = sample;
-		double b_ = 0.0;
-		RoverPathClass Rov(b_,sample_,master_grid_);
-		VectorXf output(6);
-  		MatrixXf output_tra;
-  		bool solution_found;
-		output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
-		
-		nav_msgs::Path robot_opt_path;			
-		robot_opt_path.header.stamp = ros::Time::now();
-		robot_opt_path.header.frame_id = "base_link";
-		robot_opt_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
-  		for(size_t i=0; i < sample; i++)
-		{
-
-			robot_opt_path.poses[i].pose.position.x = output_tra(0,i);
-			robot_opt_path.poses[i].pose.position.y = output_tra(1,i);
-			robot_opt_path.poses[i].pose.position.z = 0.0;
-		}
-		path_solution_pub_.publish(robot_opt_path);
-  		
-		//Invoking the Rover parts function
-		
-		//RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack, MatrixXf& FrontLeftTrack, MatrixXf& RearRightTrack, MatrixXf& RearLeftTrack, MatrixXf& Arm)
-		MatrixXf FrontRightTrack;
-		MatrixXf FrontLeftTrack;
-		MatrixXf RearRightTrack;
-		MatrixXf RearLeftTrack; 
-		MatrixXf Arm;
-		/*
-    		FrontRightTrack.Zero(3,sample);
-    		FrontLeftTrack.Zero(3,sample);
-    		RearRightTrack.Zero(3,sample);
-   		RearLeftTrack.Zero(3,sample);
-    		Arm.Zero(3,sample);*/
-
-		Rov.Rover_parts(output_tra, FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
-
-		nav_msgs::Path robot_path;			
-		robot_path.header.stamp = ros::Time::now();
-		robot_path.header.frame_id = "base_link";
-		robot_path.poses = std::vector<geometry_msgs::PoseStamped> (sample);
-  		for(size_t i=0; i < sample; i++)
-		{
-
-			robot_path.poses[i].pose.position.x = Arm(0,i);
-			robot_path.poses[i].pose.position.y = Arm(1,i);
-			robot_path.poses[i].pose.position.z = 0.0;
-		}
-		path_colision_pub_.publish(robot_path);
-		
-							
-  		//ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
-	}
 	
-	void TrackCallback(const donkey_rover::Rover_Track_Speed::ConstPtr& msg)
-	{
-		
-		float V_right = msg->Front_Right_Track_Speed;
-		float V_left = msg->Front_Left_Track_Speed;
-		
-		float V_in     = (V_right + V_left) / 2  ;
-		float Omega_in = (-V_right + V_left) / 0.8; //to be checked
-		
-    if(V_in > 0.01)
-    {
-  			VectorXf V_input;
-  			VectorXf Omega_input;
-  			Vector2f V_curr_c;
-  			V_curr_c(0) = V_in;
-  			V_curr_c(1) = Omega_in/20;
-  		
-  			V_input.setOnes(sample);
-  			Omega_input.setOnes(sample);
-  			V_input = V_in * V_input;
-  			Omega_input = Omega_in * Omega_input;
-  			//ROS_WARN_STREAM_ONCE("Lin Speed tra " << V_input);
-  		
-  			//double D = Watching_hor;   
-  			double Ts = std::min( 8.00 , Watching_hor/fabs(V_in));
-  			/* x and x_dot structure
-  				 | x  |
-  				 | y  |
-  				 | th |
-  			*/
-  			Vector3f x_0;
-  			x_0 << 0.0, 0.0, 0.0;
-  			Vector3f x_dot_0;
-  			x_dot_0 << 0.0, 0.0, 0.0;
-  		
-  			//outputs
-  			Vector3f x_dot_f;
-  			MatrixXf x;
-  			x.setZero(3,sample);
-  			
-  			//Defining the instant of RoverPathClass
-  			int sample_ = sample;
-        double b_ = b; //b
-  			RoverPathClass Rov(b_,sample_,master_grid_);	
-  			x = Rov.Rover_vw(V_input, Omega_input, b, Ts, x_0, x_dot_0 , sample, x_dot_f);
+  void test_pathsolver()
+  {
+     ROS_INFO("pcl_analyser:  Start Testing pathsolver");
+     geometry_msgs::Pose goal;
+     std::vector<double> vec;
+     if(n_.getParam("/psogoal",vec)){
+      goal.position.x = vec[0];
+      goal.position.y = vec[1];
+     }
+     else
+     {
+       ROS_ERROR("Could not find /psogoal param");
+       goal.position.x = 1.5;
+       goal.position.y = -1.0;
+     }
+     pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
+     p.loadLUT();
+     pcl_analyser::Lookuptbl L = p.searchLUT(goal.position.x,goal.position.y,20);
+     ROS_INFO("pcl_analyser: %d pathes found",L.quantity );
+     nav_msgs::Path path;
+     for(int i=0;i<L.quantity;i++)
+     {
+       ROS_INFO("pcl_analyser: %d path a:%3f b%3f c:%3f d:%f l:%f",i,L.pathes[i].a,L.pathes[i].b,L.pathes[i].c,L.pathes[i].d,L.pathes[i].v);
+       path = L.pathes[i].path;
+       path.header.stamp = ros::Time::now();
+       path_colision_pub_.publish(path);
+       ros::Duration(0.5).sleep();
+     }
+     ROS_INFO("pcl_analyser: Initial guess published, Start runing the PSO");
 
-  			//Publish the path
-        nav_msgs::Path robot_path = PathFromEigenMat(x, "base_link");
-        path_colision_pub_.publish(robot_path);
-  			//Publish end
-  			
-  			PATH_COST cost = Cost_of_path(x, master_grid_);
-  			ROS_WARN_ONCE("lethal cost = %f",cost.Lethal_cost);
-  		
-  			if (cost.collision || (cost.Lethal_cost > 0.0) || (cost.Inf_cost > 0.0))
-  			{
-  		
-  				if (!goal_present)
-  				{
-  					nav_goal(0) = x(0,x.cols()-1);
-  					nav_goal(1) = x(1,x.cols()-1);
-  					nav_goal(2) = 0.0;
-  				}
+     p.get_publishers(&path_pub_);
 
-  				VectorXf output(6);
-  				MatrixXf output_tra;
-  				bool solution_found;
-  				if (!pso_analyse)
-  				{
-  					output_tra = Rov.PSO_path_finder(nav_goal, V_curr_c,Ts, particle_no, iteration, path_piece, output, solution_found);
-            nav_msgs::Path robot_opt_path = PathFromEigenMat(output_tra, "base_link");
-            path_solution_pub_.publish(robot_opt_path);
-  					ROS_WARN_STREAM("THE OUTPUT IS --->" << output);
-            pso_analyse = true;
-  				}
-  				
-  			
-  			}		
-	
-		}
-	}
+     p.handle(&path_solution_pub_,&trace_pub,goal);
+     ROS_INFO("PSO Done!");
+  }
+
+
 
 	void run()
 	{
@@ -638,15 +466,8 @@ class ObstacleDetectorClass
 		elevation_cell_x = floor(abs(elevation_costmap_x_size/elevation_resolution_xy));
 		elevation_cell_y = floor(abs(elevation_costmap_y_size/elevation_resolution_xy));
 
-		//master_grid_ = new costmap_2d::Costmap2D(cell_x,cell_y,costmap_res,origin_x,origin_y,0);
 		master_grid_ = new costmap(origin_x,origin_y,cell_x,cell_y,costmap_res,"base_link",false);
-		//n = &n_;
 			
-		//master_grid_ros = new costmap_2d::Costmap2DPublisher(n,master_grid_,global_frame,topic_name,false);
-		//costmap end
-		
-		
-		
 		bool first_loop = true;
 		bool transform_present = true; 
 		float curr_x;
@@ -664,22 +485,24 @@ class ObstacleDetectorClass
 		float distance_passed = 0.0;
 		
 		ros::Duration(0.4).sleep();
-		
+    ros::Time curr_time, last_time;
+    last_time = ros::Time::now();
+    bool run = true;
 		while(ros::ok())
 		{
 			
 			
-		    	tf::StampedTransform transform_odom_laser;
-    		    	try{
-      				listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform_odom_laser);
-      				transform_present = true;
-    		    	}
-    			catch (tf::TransformException ex)
-    			{
-      				ROS_ERROR("%s",ex.what());
-      				ros::Duration(0.05).sleep();
-      				transform_present = false;
-    			}
+      tf::StampedTransform transform_odom_laser;
+      try{
+          listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform_odom_laser);
+          transform_present = true;
+      }
+      catch (tf::TransformException ex)
+      {
+          ROS_ERROR("%s",ex.what());
+          ros::Duration(0.05).sleep();
+          transform_present = false;
+      }
 			//Reading x and y
 			curr_x =transform_odom_laser.getOrigin().x();
 			curr_y =transform_odom_laser.getOrigin().y();
@@ -689,8 +512,7 @@ class ObstacleDetectorClass
 			tf::Matrix3x3 M(transform_odom_laser.getRotation());
 			M.getRPY(roll,pitch,yaw,(unsigned int) 1);
 			curr_yaw = (float) yaw - M_PI/2;	//odom orientation is 90 degree rotated with respect to laser
-			
-			
+						
 			if (!first_loop)
 			{	
 				
@@ -714,15 +536,15 @@ class ObstacleDetectorClass
 				
 				transform_1 (0,0) =  cos (delta_yaw);  transform_1 (0,1) =  sin (delta_yaw);
   				
-  				transform_1 (1,0) = -sin (delta_yaw);  transform_1 (1,1) =  cos (delta_yaw);
+        transform_1 (1,0) = -sin (delta_yaw);  transform_1 (1,1) =  cos (delta_yaw);
   				
-  				transform_1 (0,3) = -delta_y; 
-  				transform_1 (1,3) = -delta_x;
-  				transform_1 (2,3) = 0.0;
-  				transform_1 = transform_1;
-  				pcl::transformPointCloud (cost_map_cloud, cost_map_cloud, transform_1);
+        transform_1 (0,3) = -delta_y;
+        transform_1 (1,3) = -delta_x;
+        transform_1 (2,3) = 0.0;
+        transform_1 = transform_1;
+        pcl::transformPointCloud (cost_map_cloud, cost_map_cloud, transform_1);
   			
-  				cloud_to_costmap(cost_map_cloud);
+        cloud_to_costmap(cost_map_cloud);
 			}
 						
 			last_x = curr_x;
@@ -733,25 +555,36 @@ class ObstacleDetectorClass
 				first_loop = false;
 					
 			}
-      test_lookuptable();
+
+      //Calling test functions
+      curr_time = ros::Time::now();
+      //test_lookuptable_class();
+      //if((curr_time - last_time).toSec() > 2.00)
+      if(run && !first_loop && master_grid_->is_valid())
+      {
+        test_pathsolver();
+        run = false;
+        //test_PSO();
+        //last_time = curr_time;
+      }
+
+      // End Calling Test functions
 			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
-    			costmap_cl.header.frame_id = "base_link";
-    			costmap_cl.header.stamp = ros::Time::now();		
+      costmap_cl.header.frame_id = "base_link";
+      costmap_cl.header.stamp = ros::Time::now();
 			cost_map_cl_pub_.publish(costmap_cl);			
-			
-				
-			//Publish trace path
+						
+      /*
 			sensor_msgs::PointCloud2 path_trace; 
 			pcl::toROSMsg(path_trace_pcl,path_trace);
-    			path_trace.header.frame_id = "base_link";
-    			path_trace.header.stamp = ros::Time::now();
-    			path_trace_pub_.publish(path_trace);
-    			
-			rate.sleep();
+      path_trace.header.frame_id = "base_link";
+      path_trace.header.stamp = ros::Time::now();
+      path_trace_pub_.publish(path_trace);
+      */
+      rate.sleep();
 			ros::spinOnce ();
-			
-			
+						
 		}
 	}
 	
@@ -776,12 +609,14 @@ class ObstacleDetectorClass
 		ros::Publisher repuslive_force_pub_;
 		ros::Publisher path_pub_;
 		ros::Publisher path_solution_pub_;
-		ros::Publisher path_trace_pub_;
+    //ros::Publisher* path_trace_pub_ptr;
 		ros::Publisher path_colision_pub_;
 		ros::Publisher lookuppath_pub_;
 		ros::Publisher ChassisPose_pub_;
 		ros::Publisher Elevation_pub_;
 		ros::Publisher Obstacle_pub_;
+    boost::shared_ptr <ros::Publisher> path_trace_pub_ptr;
+    ros::Publisher trace_pub;
 
 		geometry_msgs::Vector3 repulsive_force;
 		
@@ -810,9 +645,6 @@ class ObstacleDetectorClass
 		unsigned int cell_elevation_y;
 		
 		std::string global_frame, topic_name;
-		//costmap_2d::Costmap2DPublisher* master_grid_ros;
-		//costmap_2d::Costmap2DPublisher* elevation_grid_ros;
-		// Elevation costmap params
     double elevation_resolution_xy;
     double elevation_origin_x;
     double elevation_origin_y;
