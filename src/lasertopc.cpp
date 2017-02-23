@@ -16,6 +16,7 @@
 //Messages
  #include <nav_msgs/OccupancyGrid.h>
  #include<geometry_msgs/PoseStamped.h>
+ #include<nav_msgs/Path.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
 class laserToPC
@@ -51,6 +52,7 @@ class laserToPC
       else
       {
         cmp_ptr->UpdateFromMap(*msg);
+        update_map_with_drones();
         mappub_.publish(cmp_ptr->getROSmsg());
       }
     }
@@ -65,9 +67,21 @@ class laserToPC
         point.z = 0.0;
         pcl_drone->push_back(point);
         if(cmp_ptr != 0)
-           cmp_ptr->setCost_WC(msg->pose.position.x,msg->pose.position.y,100);
+        {
+           drones.poses.push_back(*msg);
+
+        }
         else ROS_ERROR("costmap yet to be init!!!!");
 
+    }
+
+    void update_map_with_drones()
+    {
+      if (drones.poses.size() == 0) return;
+      for(int i = 0;i<drones.poses.size();i++)
+      {
+        cmp_ptr->setCost_WC(drones.poses[i].pose.position.x,drones.poses[i].pose.position.y,100);
+      }
     }
 
     void scan_cb(const sensor_msgs::LaserScan::ConstPtr& scan_in)
@@ -127,6 +141,7 @@ class laserToPC
   ros::Publisher pcpub_;
   costmap* cmp_ptr;
   tf::StampedTransform trans_map_laser;
+  nav_msgs::Path drones;
   double rate;
 };
 
