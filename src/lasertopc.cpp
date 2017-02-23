@@ -11,6 +11,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include "costmap.h"
 #include <tf/transform_listener.h>
 //Messages
  #include <nav_msgs/OccupancyGrid.h>
@@ -26,6 +27,8 @@ class laserToPC
        n_=node;
        scansub_ = n_.subscribe("/scan",1,&laserToPC::scan_cb,this);
        posesub_ = n_.subscribe("/drone",1,&laserToPC::pose_cb,this);
+       mapsub_ = n_.subscribe("/map",1,&laserToPC::map_cb,this);
+       mappub_ = n_.advertise<nav_msgs::OccupancyGrid>("/map_d",1);
        pcpub_   = n_.advertise<sensor_msgs::PointCloud>("/obstacle_pc", 10);
        PointCloudPtr pcl_scan_raw_ (new pcl::PointCloud<pcl::PointXYZ>);
        PointCloudPtr pcl_drone_ (new pcl::PointCloud<pcl::PointXYZ>);
@@ -35,7 +38,21 @@ class laserToPC
        pcl_drone = pcl_drone_;
        pcl_cloud = pcl_cloud_;
        trans_map_laser.setIdentity();
+       cmp_ptr = 0;
 
+    }
+
+    void map_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+    {
+      if(cmp_ptr == 0)
+      {
+        cmp_ptr = new costmap(*msg,false);
+      }
+      else
+      {
+        cmp_ptr->UpdateFromMap(*msg);
+        mappub_.publish(cmp_ptr->getROSmsg());
+      }
     }
 
     void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
@@ -47,6 +64,9 @@ class laserToPC
         point.y = drone_laser.getY();
         point.z = 0.0;
         pcl_drone->push_back(point);
+        if(cmp_ptr != 0)
+           cmp_ptr->setCost_WC(msg->pose.position.x,msg->pose.position.y,100);
+        else ROS_ERROR("costmap yet to be init!!!!");
 
     }
 
@@ -101,9 +121,11 @@ class laserToPC
   // Subscriber
   ros::Subscriber scansub_;
   ros::Subscriber posesub_;
+  ros::Subscriber mapsub_;
   // Publishers
+  ros::Publisher mappub_;
   ros::Publisher pcpub_;
-
+  costmap* cmp_ptr;
   tf::StampedTransform trans_map_laser;
   double rate;
 };

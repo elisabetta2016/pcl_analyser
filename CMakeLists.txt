@@ -172,7 +172,7 @@ target_link_libraries(RoverPath
  target_link_libraries(fake_obs_publisher
    ${catkin_LIBRARIES}
  )
-target_link_libraries(lasertopc
+target_link_libraries(lasertopc costmap
   ${catkin_LIBRARIES}
 )
 #############
