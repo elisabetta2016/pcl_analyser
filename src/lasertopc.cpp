@@ -11,9 +11,10 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-
+#include <tf/transform_listener.h>
 //Messages
  #include <nav_msgs/OccupancyGrid.h>
+ #include<geometry_msgs/PoseStamped.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ>::Ptr PointCloudPtr;
 class laserToPC
@@ -24,6 +25,7 @@ class laserToPC
     {
        n_=node;
        scansub_ = n_.subscribe("/scan",1,&laserToPC::scan_cb,this);
+       posesub_ = n_.subscribe("/drone",1,&laserToPC::pose_cb,this);
        pcpub_   = n_.advertise<sensor_msgs::PointCloud>("/obstacle_pc", 10);
        PointCloudPtr pcl_scan_raw_ (new pcl::PointCloud<pcl::PointXYZ>);
        PointCloudPtr pcl_drone_ (new pcl::PointCloud<pcl::PointXYZ>);
@@ -32,6 +34,19 @@ class laserToPC
        pcl_scan_raw =  pcl_scan_raw_;
        pcl_drone = pcl_drone_;
        pcl_cloud = pcl_cloud_;
+       trans_map_laser.setIdentity();
+
+    }
+
+    void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
+    {
+        tf::Vector3 map_drone(msg->pose.position.x,msg->pose.position.y,0.0);
+        tf::Vector3 drone_laser = trans_map_laser * map_drone;
+        pcl::PointXYZ point;
+        point.x = drone_laser.getX();
+        point.y = drone_laser.getY();
+        point.z = 0.0;
+        pcl_drone->push_back(point);
 
     }
 
@@ -54,7 +69,23 @@ class laserToPC
 
     void handle()
     {
-      ros::spin();
+      tf::TransformListener listener;
+      ROS_INFO("waiting for base_laser map transform");
+      listener.waitForTransform("/base_laser","/map", ros::Time(0), ros::Duration(3));
+      ROS_INFO("base_laser map transform found");
+
+      while(ros::ok)
+      {
+        try{
+          listener.lookupTransform("/base_laser", "/map", ros::Time(0), trans_map_laser);
+        }
+        catch (tf::TransformException ex){
+          ROS_ERROR("%s",ex.what());
+          ros::Duration(1.0).sleep();
+        }
+        ros::Rate(10).sleep();
+        ros::spinOnce();
+      }
     }
 
   protected:
@@ -69,9 +100,11 @@ class laserToPC
   PointCloudPtr pcl_cloud;
   // Subscriber
   ros::Subscriber scansub_;
-
+  ros::Subscriber posesub_;
   // Publishers
   ros::Publisher pcpub_;
+
+  tf::StampedTransform trans_map_laser;
   double rate;
 };
 
