@@ -28,8 +28,8 @@ class laserToPC
        n_=node;
        scansub_ = n_.subscribe("/scan",1,&laserToPC::scan_cb,this);
        posesub_ = n_.subscribe("/drone",1,&laserToPC::pose_cb,this);
-       mapsub_ = n_.subscribe("/map",1,&laserToPC::map_cb,this);
-       mappub_ = n_.advertise<nav_msgs::OccupancyGrid>("/map_d",1);
+       mapsub_ = n_.subscribe("/map_raw",1,&laserToPC::map_cb,this);
+       mappub_ = n_.advertise<nav_msgs::OccupancyGrid>("/map",1);
        pcpub_   = n_.advertise<sensor_msgs::PointCloud>("/obstacle_pc", 10);
        PointCloudPtr pcl_scan_raw_ (new pcl::PointCloud<pcl::PointXYZ>);
        PointCloudPtr pcl_drone_ (new pcl::PointCloud<pcl::PointXYZ>);
