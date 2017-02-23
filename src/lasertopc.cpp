@@ -24,7 +24,7 @@ class laserToPC
     {
        n_=node;
        scansub_ = n_.subscribe("/scan",1,&laserToPC::scan_cb,this);
-       pcpub_   = n_.advertise<sensor_msgs::PointCloud2>("/obstacle_pc", 10);
+       pcpub_   = n_.advertise<sensor_msgs::PointCloud>("/obstacle_pc", 10);
        PointCloudPtr pcl_scan_raw_ (new pcl::PointCloud<pcl::PointXYZ>);
        PointCloudPtr pcl_drone_ (new pcl::PointCloud<pcl::PointXYZ>);
        PointCloudPtr pcl_cloud_ (new pcl::PointCloud<pcl::PointXYZ>);
@@ -45,10 +45,10 @@ class laserToPC
        pcl_cloud->clear();
        *pcl_cloud = *pcl_scan_raw + *pcl_drone;
        pcl::toROSMsg(*pcl_cloud,cloud2);
-
+       sensor_msgs::convertPointCloud2ToPointCloud(cloud2,cloud);
        cloud.header.stamp = ros::Time::now();
        cloud.header.frame_id = scan_in->header.frame_id;
-       pcpub_.publish(cloud2);
+       pcpub_.publish(cloud);
 
     }
 
