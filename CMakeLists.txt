@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   laser_assembler
+  laser_geometry
   costmap_2d
   hector_elevation_mapping
   std_msgs
@@ -114,7 +115,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES costmap
+  LIBRARIES costmap RoverPath
   CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
   DEPENDS system_lib
   message_runtime
@@ -149,6 +150,7 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
  add_executable(path_follower src/path_follower.cpp)
  add_executable(fake_obs_publisher src/fake_obs_publisher.cpp)
  add_executable(lpgen src/lpgen.cpp)
+ add_executable(lasertopc src/lasertopc.cpp)
  
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -170,6 +172,9 @@ target_link_libraries(RoverPath
  target_link_libraries(fake_obs_publisher
    ${catkin_LIBRARIES}
  )
+target_link_libraries(lasertopc
+  ${catkin_LIBRARIES}
+)
 #############
 ## Install ##
 #############
@@ -190,7 +195,11 @@ install(TARGETS costmap
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
-
+install(TARGETS RoverPath
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 ## Mark cpp header files for installation
 install(DIRECTORY include/${PROJECT_NAME}/
    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}

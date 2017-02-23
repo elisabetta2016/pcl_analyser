@@ -345,7 +345,10 @@ float pathsolver::compute_J(MatrixXf *traptr,Vector3f arm_goal,float travelcost,
   float J_goal = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
   float h_obs = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
   float J_chass = rov->Chassis_simulator(*traptr, elevation_grid_ptr, 3.5, arm_tra, Poses, Poses_msg,*ecostmap_meta_ptr);
-  float J_arm = rov->Arm_energy(arm_tra,arm_goal);
+
+  float J_arm =0;
+  if (round(arm_goal(0)) != 0 && round(arm_goal(1)) != 0)
+    J_arm = rov->Arm_energy(arm_tra,arm_goal);
   //float Ob_func_3 = fabs(x(0,0) - prop_speed);			      		     // speed effect
   // Goal distance cost can be evaluated using cnmap now
   // Chassis cost term to be added
