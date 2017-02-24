@@ -27,7 +27,7 @@ class laserToPC
     {
        n_=node;
        scansub_ = n_.subscribe("/scan",1,&laserToPC::scan_cb,this);
-       posesub_ = n_.subscribe("/drone",1,&laserToPC::pose_cb,this);
+       posesub_ = n_.subscribe("/uav_pose",1,&laserToPC::pose_cb,this);
        mapsub_ = n_.subscribe("/map_raw",1,&laserToPC::map_cb,this);
        mappub_ = n_.advertise<nav_msgs::OccupancyGrid>("/map",1);
        pcpub_   = n_.advertise<sensor_msgs::PointCloud>("/obstacle_pc", 10);
@@ -45,6 +45,7 @@ class laserToPC
 
     void map_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
     {
+      ROS_WARN("map received!");
       if(cmp_ptr == 0)
       {
         cmp_ptr = new costmap(*msg,false);
@@ -59,6 +60,7 @@ class laserToPC
 
     void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
     {
+      
         tf::Vector3 map_drone(msg->pose.position.x,msg->pose.position.y,0.0);
         tf::Vector3 drone_laser = trans_map_laser * map_drone;
         pcl::PointXYZ point;
@@ -68,11 +70,15 @@ class laserToPC
         pcl_drone->push_back(point);
         if(cmp_ptr != 0)
         {
+          ROS_INFO_STREAM(*msg);
            drones.poses.push_back(*msg);
+           update_map_with_drones();
+           mappub_.publish(cmp_ptr->getROSmsg());
+           
 
         }
         else ROS_ERROR("costmap yet to be init!!!!");
-
+        
     }
 
     void update_map_with_drones()
@@ -80,12 +86,30 @@ class laserToPC
       if (drones.poses.size() == 0) return;
       for(int i = 0;i<drones.poses.size();i++)
       {
-        cmp_ptr->setCost_WC(drones.poses[i].pose.position.x,drones.poses[i].pose.position.y,100);
+        size_t mx,my;
+        cmp_ptr->worldToMap(drones.poses[i].pose.position.x,drones.poses[i].pose.position.y,mx,my);
+        for(size_t j=0;j<4;j++)
+          for(size_t jj = 0;jj<4;jj++)
+             cmp_ptr->setCost(mx+j,my+jj,100);
       }
     }
 
     void scan_cb(const sensor_msgs::LaserScan::ConstPtr& scan_in)
     {
+       pcl_drone->clear();
+       if (drones.poses.size()>0)
+       {
+         for(int i=0;i<drones.poses.size();i++)
+         {
+           tf::Vector3 map_drone(drones.poses[i].pose.position.x,drones.poses[i].pose.position.y,0.0);
+           tf::Vector3 drone_laser = trans_map_laser * map_drone;
+           pcl::PointXYZ point;
+           point.x = drone_laser.getX();
+           point.y = drone_laser.getY();
+           point.z = 0.0;
+           pcl_drone->push_back(point);
+         }
+       }
        projector_.projectLaser(*scan_in, cloud);
        sensor_msgs::PointCloud2 cloud2;
        sensor_msgs::convertPointCloudToPointCloud2(cloud,cloud2);
@@ -94,20 +118,21 @@ class laserToPC
        pcl_cloud->clear();
        *pcl_cloud = *pcl_scan_raw + *pcl_drone;
        pcl::toROSMsg(*pcl_cloud,cloud2);
-       sensor_msgs::convertPointCloud2ToPointCloud(cloud2,cloud);
-       cloud.header.stamp = ros::Time::now();
-       cloud.header.frame_id = scan_in->header.frame_id;
-       pcpub_.publish(cloud);
+       sensor_msgs::PointCloud pc;
+       sensor_msgs::convertPointCloud2ToPointCloud(cloud2,pc);
+       pc.header.stamp = ros::Time::now();
+       pc.header.frame_id = scan_in->header.frame_id;
+       pcpub_.publish(pc);
 
     }
-
+   
     void handle()
     {
       tf::TransformListener listener;
       ROS_INFO("waiting for base_laser map transform");
       listener.waitForTransform("/base_laser","/map", ros::Time(0), ros::Duration(3));
       ROS_INFO("base_laser map transform found");
-
+      ros::Rate r(10);
       while(ros::ok)
       {
         try{
@@ -117,7 +142,7 @@ class laserToPC
           ROS_ERROR("%s",ex.what());
           ros::Duration(1.0).sleep();
         }
-        ros::Rate(10).sleep();
+        r.sleep();
         ros::spinOnce();
       }
     }
