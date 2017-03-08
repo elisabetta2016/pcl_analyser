@@ -8,6 +8,8 @@
 #include <rosbag/view.h>
 #include <ros/package.h>
 #include <boost/foreach.hpp>
+#include <geometry_msgs/PoseStamped.h>
+
 using namespace Eigen;
 using namespace std;
 
@@ -56,6 +58,7 @@ public:
   pcl_analyser::Lookuptbl readLUT(float wx, float wy);
   void get_publishers(ros::Publisher* temp_pub_ptr);
   pcl_analyser::Lookuptbl searchLUT(float wx,float wy,int desired_path_no);
+  void test();
 protected:
   RoverPathClass *rov;
   int sample;
@@ -73,7 +76,12 @@ protected:
   multimap<LT_key,multimap<LT_key,pcl_analyser::Lpath> >* LUTmapPtr;
   //sensor_msgs::PointCloud2* pathtrace_pc_msg_ptr;
   ros::Publisher* tmppubptr;
+  // for test
+  ros::Subscriber pose_sub;
+  ros::Publisher path_result_pub;
+  ros::Publisher path_LUT_pub_;
 private:
+  void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
   hector_elevation_visualization::EcostmapMetaData::Ptr ecostmap_meta_ptr;
   pcl_analyser::Lookuptbl LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut);
   nav_msgs::Path solve(Vector3f goal);

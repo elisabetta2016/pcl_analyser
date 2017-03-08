@@ -43,7 +43,7 @@ class FakeObstacleCloud
 		float z_inc = 1.5;
 		
 		float X_obs = 1.2;
-		float Y_obs = 0.4;
+    float Y_obs = -0.4;
 		
 		pcl::PointXYZ point;
 		point.x = X_obs;

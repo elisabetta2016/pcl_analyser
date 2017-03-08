@@ -373,6 +373,11 @@ struct PointIndex {
 		
 	}
 
+  void test_auto_pathsolver()
+  {
+    ps_ptr = new pathsolver(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
+    ps_ptr->test();
+  }
 	
   void test_pathsolver()
   {
@@ -562,7 +567,8 @@ struct PointIndex {
       //if((curr_time - last_time).toSec() > 2.00)
       if(run && !first_loop && master_grid_->is_valid())
       {
-        test_pathsolver();
+        //test_pathsolver();
+        test_auto_pathsolver();
         run = false;
         //test_PSO();
         //last_time = curr_time;
@@ -632,7 +638,7 @@ struct PointIndex {
 		//costmap variables
 		costmap* master_grid_;
 		costmap* elevation_grid_;
-		
+    pathsolver* ps_ptr;
 		double costmap_x_size;
 		double costmap_y_size;
 		double origin_x;

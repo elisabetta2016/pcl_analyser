@@ -59,6 +59,8 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_gri
   pathtrace_ptr = temp_ptr;
   LUTmapPtr =  new std::multimap <LT_key,std::multimap <LT_key,pcl_analyser::Lpath> >();
   show_ = false; // to be removed in the final version
+
+
 }
 
 pathsolver::~pathsolver()
@@ -66,6 +68,35 @@ pathsolver::~pathsolver()
   delete rov;
   delete LUTmapPtr;
   ROS_WARN("pathsolver instant destructed!");
+}
+
+void pathsolver::test()
+{
+  path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
+  path_LUT_pub_   = nPtr->advertise <nav_msgs::Path>("/PSO_init_guess",1);
+  pose_sub = nPtr->subscribe("/my_goal",1,&pathsolver::pose_cb,this);
+  loadLUT();
+  ROS_INFO("Test Ready");
+  ros::spin();
+}
+
+void pathsolver::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
+{
+   ROS_INFO("\x1B[33m" "POSE RECEIVED!");
+   Vector3f goal;
+   goal(0) = msg->pose.position.x;
+   goal(1) = msg->pose.position.y;
+   goal(2) = 0;
+   pcl_analyser::Lookuptbl L = searchLUT(goal(0),goal(1),20);
+   nav_msgs::Path path;
+   for(int i=0;i<L.quantity;i++)
+   {
+     path = L.pathes[i].path;
+     path.header.stamp = ros::Time::now();
+     path_LUT_pub_.publish(path);
+     ros::Duration(0.5).sleep();
+   }
+   path_result_pub.publish(solve(goal));
 }
 
 void pathsolver::get_publishers(ros::Publisher* temp_pub_ptr)
@@ -344,7 +375,7 @@ float pathsolver::compute_J(MatrixXf *traptr,Vector3f arm_goal,float travelcost,
   VectorXf Poses;
   float J_goal = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
   float h_obs = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
-  float J_chass = rov->Chassis_simulator(*traptr, elevation_grid_ptr, 3.5, arm_tra, Poses, Poses_msg,*ecostmap_meta_ptr);
+  float J_chass =0; //;= rov->Chassis_simulator(*traptr, elevation_grid_ptr, 3.5, arm_tra, Poses, Poses_msg,*ecostmap_meta_ptr);   // Crash
 
   float J_arm =0;
   if (round(arm_goal(0)) != 0 && round(arm_goal(1)) != 0)
