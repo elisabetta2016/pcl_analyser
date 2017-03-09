@@ -52,8 +52,8 @@ struct PathAdr{
 //define global variables
  extern double omega_x;
  extern double laser_dist;
- extern bool demo_;
- extern double b;
+ //extern bool demo_;
+ //extern double b;
 
 
 class RoverPathClass
@@ -65,7 +65,7 @@ public:
 
   void get_global_attributes(boost::shared_ptr <ros::Publisher> path_trace_pub_);
 
-	void set_path_params(double Travel_cost_inc_,double Lethal_cost_inc_,double Inf_cost_inc_);
+  void set_path_params(double Travel_cost_inc_ = 0.2,double Lethal_cost_inc_ = 5.0,double Inf_cost_inc_ = 1.00);
 	
 	void set_pso_params(double pso_inertia_in,double c_1_in,double c_2_in,double Goal_gain_in,double Cost_gain_in,double Speed_gain_in,int particle_no_,int iteration_);
 	
@@ -105,7 +105,8 @@ protected:
 	//RoverSim params
 	double Rover_b;
 	int sample;
-	
+  bool demo_;
+  double b;
 	pcl::PointCloud<pcl::PointXYZ> path_trace_pcl;	
 	
 	//PSO params

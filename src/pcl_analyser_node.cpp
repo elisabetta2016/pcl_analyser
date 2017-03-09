@@ -140,12 +140,10 @@ struct PointIndex {
       Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
       path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
       trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
-      /*
-      // Range image params
-    			
-			support_size = 0.4f;
-			setUnseenToMaxRange = false;
-      */
+      //
+      master_grid_ = 0;
+      elevation_grid_ = 0;
+
 			//Initializer
 			repulsive_force.x = 0.0;
 			repulsive_force.y = 0.0;
@@ -375,12 +373,13 @@ struct PointIndex {
 
   void test_auto_pathsolver()
   {
-    ps_ptr = new pathsolver(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
+    ps_ptr = new pathsolver(&n_pr,"global_costmap","elevation_grid_",0.0,3.00,50);
     ps_ptr->test();
   }
 	
   void test_pathsolver()
   {
+     if(master_grid_ == 0 || elevation_grid_ == 0) return;
      ROS_INFO("pcl_analyser:  Start Testing pathsolver");
      geometry_msgs::Pose goal;
      std::vector<double> vec;
@@ -568,7 +567,7 @@ struct PointIndex {
       if(run && !first_loop && master_grid_->is_valid())
       {
         //test_pathsolver();
-        test_auto_pathsolver();
+        //test_auto_pathsolver();
         run = false;
         //test_PSO();
         //last_time = curr_time;

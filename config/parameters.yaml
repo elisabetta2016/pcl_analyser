@@ -1,6 +1,3 @@
-<launch>
-    <node type="pcl_analyser_node" pkg="pcl_analyser" name="pcl_analyser_node" output="screen" launch-prefix="gdb -ex run --args">
-        <rosparam command="load" file="$(find pcl_analyser)/config/lookuptable.yaml" />
     	<param name="costmap_res" type="double" value="0.1" />
     	<param name="LETHAL_radius" type="double" value="0.1" />
     	<param name="INFLATION_radius" type="double" value="0.3" />
@@ -23,20 +20,23 @@
         <param name="Watching_horizon"  value="3.2" />
         <param name="sample"  value="20" />
         <param name="demo_mode"  value="false" />
-        
-  </node>
-<!-- comment
-  <node type="path_follower" pkg="pcl_analyser" name="path_follower"/> 
+costmap_res: 0.1
+LETHAL_radius: 0.1
+INFLATION_radius: 0.3
+pso_inertia
+pso_c1
+pso_c2
+pso_speed_gain
+pso_goal_gain
+pso_cost_gain
+pso_particle_no
+pso_iteration
+path_piece_no
+omega_x
+Travel_cost_inc
+Lethal_cost_inc
+Inflation_cost_inc
+b
+Watching_horizon
 
-  <node type="follow.py" pkg="donkey_rover" name="follow" output="screen">
-  	<param name="distance_b"  value="0.4" />
-  	<param name="Controller_Gain"  value="4.0" />
-  	<param name="Tracking_precision"  value="0.05" />
-  </node>
- -->
 
- <param name="Window_height"  value="3.0" />
- <param name="Window_width"  value="3.0" />
-
-
-</launch>

@@ -63,6 +63,27 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_gri
 
 }
 
+pathsolver::pathsolver(ros::NodeHandle* nPtr_,std::string costmap_topic, std::string emap_topic,double b, float Ts_, int sample_,std::string param_ns_)
+{
+  //rov = rov_;
+  sample = sample_;
+  //lookahead = b;
+  Ts = Ts_;
+  nPtr = nPtr_;
+  //demo_ = false;
+  master_grid_ptr = 0;
+  elevation_grid_ptr = 0;
+  param_ns = param_ns_+"/";
+  costmap_sub = nPtr->subscribe(costmap_topic,1,&pathsolver::costmap_cb,this);
+  emap_sub = nPtr->subscribe(emap_topic,1,&pathsolver::emap_cb,this);
+  rov = 0;
+  //rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
+  PointCloudPtr temp_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+  pathtrace_ptr = temp_ptr;
+  LUTmapPtr =  new std::multimap <LT_key,std::multimap <LT_key,pcl_analyser::Lpath> >();
+  show_ = false; // to be removed in the final version
+}
+
 pathsolver::~pathsolver()
 {
   delete rov;
@@ -70,6 +91,23 @@ pathsolver::~pathsolver()
   ROS_WARN("pathsolver instant destructed!");
 }
 
+void pathsolver::costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+{
+  master_grid_ptr = new costmap(msg,false);
+  //build_rov_if_not_exist();
+}
+void pathsolver::emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+{
+  elevation_grid_ptr= new costmap(msg,false);
+  //build_rov_if_not_exist();
+}
+
+void pathsolver::build_rov_if_not_exist()
+{
+  if(master_grid_ptr==0 || elevation_grid_ptr==0 || rov!=0) return;
+  rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
+  ROS_INFO("ROVER PATH Instant built");
+}
 void pathsolver::test()
 {
   path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
@@ -94,10 +132,133 @@ void pathsolver::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      path = L.pathes[i].path;
      path.header.stamp = ros::Time::now();
      path_LUT_pub_.publish(path);
-     ros::Duration(0.5).sleep();
+     ros::Duration(0.05).sleep();
    }
    path_result_pub.publish(solve(goal));
 }
+
+PATH_COST pathsolver::Cost_of_path(MatrixXf path, costmap *grid, float Lethal_cost_inc,float Inf_cost_inc,float Travel_cost_inc)
+{
+
+  CELL prev_cell;
+  CELL curr_cell;
+  prev_cell.x = 0;
+  prev_cell.y = 0;
+  PATH_COST cost;
+  cost.Lethal_cost = 0.0;
+  cost.Travel_cost = 0.0;//Travel_cost_inc;
+  cost.Inf_cost = 0.0;
+  cost.collision = false;
+
+  for(size_t i=0; i < path.cols(); i++)
+  {
+    grid->worldToMap((double) path(0,i),(double) path(1,i),curr_cell.x,curr_cell.y);
+
+    if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
+    {
+      curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
+      //ROS_ERROR("current_cell.c %d",curr_cell.c);
+      if ((int)curr_cell.c == 100)//LETHAL_OBSTACLE
+      {
+        //ROS_INFO("LETHAL !");
+        cost.Lethal_cost += Lethal_cost_inc;
+        cost.collision = true;
+      }
+      if ((int)curr_cell.c == 90)//INFLATED_OBSTACLE
+      {
+        //ROS_INFO("INFLATED !");
+        cost.Inf_cost += Inf_cost_inc;
+      }
+      //cost.Travel_cost +=  Travel_cost_inc;
+      prev_cell = curr_cell;
+    }
+  }
+  return cost;
+}
+float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale)
+{
+  float cost = 0.0;
+  int vector_size = Path.cols();
+  VectorXf temp_output (vector_size);
+    //geometry_msgs::PoseArray msg;
+  geometry_msgs::Pose temp_pose;
+  CELL FRT_cell;
+  CELL FLT_cell;
+  bool unknownCell = false;
+  const float RoverWidth = 0.3965;
+  float delta_e = 0.0;
+  MatrixXf FrontRightTrack;
+  MatrixXf FrontLeftTrack;
+  MatrixXf RearRightTrack;
+  MatrixXf RearLeftTrack;
+  //MatrixXf Arm;
+  int mx,my;
+  //build_rov_if_not_exist();
+  rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
+
+  msg.poses = std::vector <geometry_msgs::Pose> (vector_size);
+  for (size_t i=0;i < vector_size;i++)
+  {
+    if(!elevation_grid_ptr->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), FRT_cell.x, FRT_cell.y) ||
+       !elevation_grid_ptr->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), FLT_cell.x, FLT_cell.y) )
+    {
+      temp_pose.position.x = Path(0,i);
+      temp_pose.position.y = Path(1,i);
+      temp_pose.position.z = 0.0;
+      temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (0.0, 0.0, Path(2,i));
+      msg.poses[i] = temp_pose;
+      temp_output(i) = 0.0;
+      continue;
+    }
+    //ROS_WARN("FRT 1:%f 2:%f 3:%d 4:%d",FrontRightTrack(0,i),FrontRightTrack(1,i),FRT_cell.x,FRT_cell.y);
+    FRT_cell.c = elevation_grid_ptr->getCost(FRT_cell.x,FRT_cell.y);
+    FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
+
+    delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    if (FRT_cell.c == 255 || FLT_cell.c == 255)
+    {
+      unknownCell = true;
+    }
+
+
+    temp_output(i) = asin(delta_e/RoverWidth);
+    if (unknownCell)
+    {
+      if(i==1) temp_output(i) = 0.0;
+      else temp_output(i) = temp_output(i-1);
+      unknownCell = false;
+    }
+    temp_pose.position.x = Path(0,i);
+    temp_pose.position.y = Path(1,i);
+    temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
+    temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (temp_output(i), 0.0, Path(2,i));
+    msg.poses[i] = temp_pose;
+  }
+  Poses = temp_output; // Poses are rolls
+  //ROS_WARN_STREAM(temp_output);
+  msg.header.stamp = ros::Time::now();
+  msg.header.frame_id = "base_link";
+  float roll_0 = 0.0;
+  float COST_MAX = temp_output.cols() * M_PI/2; // The worst case is when there is M_PI/4 diff and M_PI/4 const for each sample
+  for(int i = 0;i< temp_output.cols();i++)
+  {
+    if(temp_output(i) > M_PI/4 || temp_output(i) < -M_PI/4) //hazard
+    {
+      cost = 1.5*COST_MAX;
+      return cost/COST_MAX;
+    }
+    else
+    {
+      cost = fabs(temp_output(i)-roll_0)+fabs(temp_output(i))+cost; // 1st term differential term 2nd term current roll
+      roll_0 = temp_output(i);
+    }
+    //normalized output
+
+  }
+  return cost/COST_MAX;
+
+}
+
 
 void pathsolver::get_publishers(ros::Publisher* temp_pub_ptr)
 {
@@ -368,14 +529,14 @@ float pathsolver::compute_J(MatrixXf *traptr,Vector3f arm_goal,float travelcost,
   Vector3f tra_tail;
   tra_tail(0) = traptr->coeffRef(0,traptr->cols()-1);
   tra_tail(1) = traptr->coeffRef(1,traptr->cols()-1);
-  PATH_COST cost = rov->Cost_of_path(*traptr, master_grid_ptr);
+  PATH_COST cost = Cost_of_path(*traptr, master_grid_ptr);
   //calculating rover parts trajectories
   MatrixXf arm_tra;
   geometry_msgs::PoseArray Poses_msg;
   VectorXf Poses;
   float J_goal = sqrtf( pow((tra_tail(0)-Goal(0)), 2) + pow((tra_tail(1)-Goal(1)), 2) );    //effect of distance from the goal
   float h_obs = (cost.Lethal_cost + cost.Inf_cost);				     // path cost
-  float J_chass =0; //;= rov->Chassis_simulator(*traptr, elevation_grid_ptr, 3.5, arm_tra, Poses, Poses_msg,*ecostmap_meta_ptr);   // Crash
+  float J_chass = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // to test
 
   float J_arm =0;
   if (round(arm_goal(0)) != 0 && round(arm_goal(1)) != 0)
@@ -384,7 +545,7 @@ float pathsolver::compute_J(MatrixXf *traptr,Vector3f arm_goal,float travelcost,
   // Goal distance cost can be evaluated using cnmap now
   // Chassis cost term to be added
   // Arm energy consumption based on path to be calculated and added
-  C = J_goal + h_obs + travelcost;
+  C = J_goal + h_obs + travelcost + J_chass;
   ROS_INFO_COND(demo_,"cost of current path is %f",C);
   if (cost.Lethal_cost < 1) solution_found = true;
   return C;
@@ -428,27 +589,28 @@ void pathsolver::init_x(MatrixXf *xptr,Vector3f goal,int particle_no)
 }
 void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2)
 {
-   if(!nPtr->getParam("pso_particle_no",particle_no))
+   ROS_WARN_STREAM("PSO Param:" << param_ns+"pso_particle_no");
+   if(!ros::param::get(param_ns+"pso_particle_no",particle_no))
    {
       particle_no = 30;
       ROS_WARN("pso particle_no is missing, it is set to the default value of %d",particle_no);
    }
-   if(!nPtr->getParam("pso_iteration",iteration))
+   if(!ros::param::get(param_ns+"pso_iteration",iteration))
    {
       int iteration = 20;
       ROS_WARN("pso iteration is missing, it is set to the default value of %d",iteration);
    }
-   if(!nPtr->getParam("pso_inertia",pso_inertia))
+   if(!ros::param::get(param_ns+"pso_inertia",pso_inertia))
    {
       pso_inertia = 0.6;
       ROS_WARN("pso pso_inertia is missing, it is set to the default value of %f",pso_inertia);
    }
-   if(!nPtr->getParam("pso_c1",c_1))
+   if(!ros::param::get(param_ns+"pso_c1",c_1))
    {
       c_1 = 0.6;
       ROS_WARN("pso pso_c_1 is missing, it is set to the default value of %f",c_1);
    }
-   if(!nPtr->getParam("pso_c2",c_2))
+   if(!ros::param::get(param_ns+"pso_c2",c_2))
    {
       c_2 = 0.1;
       ROS_WARN("pso pso_c_2 is missing, it is set to the default value of %f",c_2);

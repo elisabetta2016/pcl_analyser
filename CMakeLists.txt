@@ -115,7 +115,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES costmap RoverPath
+  LIBRARIES costmap pathsolver
   CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
   DEPENDS system_lib
   message_runtime
@@ -135,8 +135,10 @@ include_directories(
 
 ## Declare a C++ library
 add_library(RoverPath
-   include/${PROJECT_NAME}/RoverPath.cpp include/${PROJECT_NAME}/pathsolver.cpp
+   include/${PROJECT_NAME}/RoverPath.cpp
 )
+
+add_library(pathsolver include/${PROJECT_NAME}/pathsolver.cpp)
 add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/cnmap.cpp)
 
 
@@ -160,7 +162,10 @@ add_library(costmap include/${PROJECT_NAME}/costmap.cpp include/${PROJECT_NAME}/
 target_link_libraries(RoverPath
     ${catkin_LIBRARIES} ${rosbag_LIBRARIES} ${rospackage_LIBRARIES}
     )
- target_link_libraries(pcl_analyser_node RoverPath costmap
+target_link_libraries(pathsolver RoverPath
+    ${catkin_LIBRARIES} ${rosbag_LIBRARIES} ${rospackage_LIBRARIES}
+    )
+ target_link_libraries(pcl_analyser_node pathsolver RoverPath costmap
    ${catkin_LIBRARIES}
  )
  target_link_libraries(lpgen RoverPath 
@@ -195,7 +200,7 @@ install(TARGETS costmap
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
-install(TARGETS RoverPath
+install(TARGETS pathsolver
    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

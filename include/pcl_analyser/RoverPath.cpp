@@ -394,13 +394,14 @@ pcl::PointCloud<pcl::PointXYZ> RoverPathClass::get_path_trace_cloud()
 	
 PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap *grid)
 {
+  set_path_params();
 	CELL prev_cell;
 	CELL curr_cell;
 	prev_cell.x = 0;
 	prev_cell.y = 0;
 	PATH_COST cost;
 	cost.Lethal_cost = 0.0;
-	cost.Travel_cost = Travel_cost_inc;
+  cost.Travel_cost = 0.0;//Travel_cost_inc;
 	cost.Inf_cost = 0.0;
 	cost.collision = false;
 	
@@ -423,7 +424,7 @@ PATH_COST RoverPathClass::Cost_of_path(MatrixXf path, costmap *grid)
         //ROS_INFO("INFLATED !");
 				cost.Inf_cost += Inf_cost_inc; 
 			}
-			cost.Travel_cost +=  Travel_cost_inc;
+      //cost.Travel_cost +=  Travel_cost_inc;
 			prev_cell = curr_cell;
 		}
 	}

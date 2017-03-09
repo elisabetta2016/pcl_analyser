@@ -49,6 +49,8 @@ struct ctrlparam
 class pathsolver
 {
 public:
+
+  pathsolver(ros::NodeHandle* nPtr_,std::string costmap_topic, std::string emap_topic,double b, float Ts_, int sample_,std::string param_ns_ = "pcl_analyser_node");
   pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_grid_,double b, float Ts_, int sample_);
   ~pathsolver();
   void handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,geometry_msgs::Pose goal_pose);
@@ -78,9 +80,17 @@ protected:
   ros::Publisher* tmppubptr;
   // for test
   ros::Subscriber pose_sub;
+  ros::Subscriber costmap_sub;
+  ros::Subscriber emap_sub;
   ros::Publisher path_result_pub;
   ros::Publisher path_LUT_pub_;
+  std::string param_ns;
 private:
+  PATH_COST Cost_of_path(MatrixXf path, costmap *grid, float Lethal_cost_inc = 5.0,float Inf_cost_inc = 2.0,float Travel_cost_inc = 0.1);
+  float Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale = 3.5);
+  void emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
+  void costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
+  void build_rov_if_not_exist();
   void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
   hector_elevation_visualization::EcostmapMetaData::Ptr ecostmap_meta_ptr;
   pcl_analyser::Lookuptbl LUTcleanup(geometry_msgs::Pose Goal,pcl_analyser::Lookuptbl lut);
