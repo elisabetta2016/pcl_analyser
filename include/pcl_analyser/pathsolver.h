@@ -1,5 +1,15 @@
 #ifndef PATHSOLVER_H
 #define PATHSOLVER_H
+
+#define KNRM  "\x1B[0m"
+#define KRED  "\x1B[31m"
+#define KGRN  "\x1B[32m"
+#define KYEL  "\x1B[33m"
+#define KBLU  "\x1B[34m"
+#define KMAG  "\x1B[35m"
+#define KCYN  "\x1B[36m"
+#define KWHT  "\x1B[37m"
+
 #include "RoverPath.h"
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl_analyser/Lpath.h>
@@ -12,6 +22,11 @@
 
 using namespace Eigen;
 using namespace std;
+
+float Dx(Vector3f a,Vector3f b)
+{
+  return sqrtf((a-b).coeff(0)*(a-b).coeff(0) + (a-b).coeff(1)*(a-b).coeff(1));
+}
 
 class LT_key
 {
@@ -83,10 +98,13 @@ protected:
   ros::Subscriber costmap_sub;
   ros::Subscriber emap_sub;
   ros::Publisher path_result_pub;
-  ros::Publisher path_LUT_pub_;
+  ros::Publisher path_LUT_pub_;\
+  ros::Publisher Chassis_pub;
   std::string param_ns;
 private:
+  bool contains_NAN(geometry_msgs::Pose m);
   PATH_COST Cost_of_path(MatrixXf path, costmap *grid, float Lethal_cost_inc = 5.0,float Inf_cost_inc = 2.0,float Travel_cost_inc = 0.1);
+  void Chassis_sim_pub(MatrixXf Path, double map_scale = 3.5);
   float Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale = 3.5);
   void emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
   void costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
@@ -98,7 +116,7 @@ private:
   MatrixXf rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost);
   MatrixXf compute_tra(float a,float b,float c,float d,float v,float s_max);
   void init_x(MatrixXf *xptr,Vector3f goal,int particle_no);
-  float compute_J(MatrixXf *traptr, Vector3f arm_goal, float travelcost, VectorXf Goal, bool& solution_found);
+  float compute_J(MatrixXf *traptr, Vector3f arm_goal, float travelcost, Vector3f Goal, bool& solution_found);
   void init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2);
   void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg);
 };

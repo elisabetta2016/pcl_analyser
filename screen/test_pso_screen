@@ -15,7 +15,8 @@ stuff "sleep 1;roslaunch rover_simulator simulator.launch\015"
 
 screen 2
 title "elevation map"
-stuff "sleep 1; roslaunch hector_elevation_visualization donkey_elevation.launch\015"
+stuff "sleep 1;rosbag play -l ~/Documents/2017-03-08-16-42-21.bag\015"
+#stuff "sleep 1; roslaunch hector_elevation_visualization donkey_elevation.launch\015"
 
 screen 3
 title "PSO"
@@ -26,9 +27,13 @@ title "fake obstacle"
 stuff "sleep 1; rosrun pcl_analyser fake_obs_publisher\015"
 
 screen 5
-title "interaction shell"
+title "Test pathsolver"
+stuff "sleep 3;rosrun tester tester_node\015"
 
 screen 6
 title "rviz"
-stuff "sleep 1; rosrun rviz rviz -d ../config/pso_cnf.rviz\015"
-select 3
+stuff "sleep 1; rosrun rviz rviz -d ${HOME}/dev_ws/src/pcl_analyser/config/pso_cnf.rviz\015"
+
+screen 7
+title "interaction shell"
+select 5
