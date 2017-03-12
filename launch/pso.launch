@@ -1,5 +1,5 @@
 <launch>
-    <node type="pcl_analyser_node" pkg="pcl_analyser" name="pcl_analyser_node" output="screen" launch-prefix="gdb -ex run --args">
+    <node type="pcl_analyser_node" pkg="pcl_analyser" name="pcl_analyser_node" output="screen">
         <rosparam command="load" file="$(find pcl_analyser)/config/lookuptable.yaml" />
     	<param name="costmap_res" type="double" value="0.1" />
     	<param name="LETHAL_radius" type="double" value="0.1" />

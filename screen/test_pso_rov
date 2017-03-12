@@ -1,0 +1,35 @@
+deflogin on
+autodetach on
+
+escape ^oo
+
+caption always
+
+screen 0
+title "Scanner Control"
+#stuff "source ${HOME}/catkin_ws/src/pc_maker/config/scanner"
+
+screen 1
+title "pc_maker"
+#stuff "sleep 1;roslaunch pc_maker pointCloud_window.launch\015"
+
+screen 2
+title "elevation map"
+stuff "sleep 1; roslaunch hector_elevation_visualization donkey_elevation.launch\015"
+
+screen 3
+title "PSO"
+stuff "sleep 2; roslaunch pcl_analyser pso.launch\015"
+
+screen 4
+title "Test pathsolver"
+stuff "sleep 3;rosrun tester tester_node\015"
+
+screen 5
+title "rviz"
+stuff "sleep 1; rosrun rviz rviz -d ${HOME}/catkin_ws/src/pcl_analyser/config/pso_cnf.rviz\015"
+
+screen 6
+title "fake map"
+stuff "rosrun tf static_transform_publisher 0 0 0 0 0 0 map odom 30\015"
+select 4

@@ -174,7 +174,7 @@ struct PointIndex {
 		
 	void obstacle_find_Publish(const sensor_msgs::PointCloud2ConstPtr& cloud)
 	{
-		//ROS_INFO("Obstacle detection Starts!");
+      ROS_INFO("Obstacle detection Starts!");
   		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pcl (new pcl::PointCloud<pcl::PointXYZ>);
   		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_pcl (new pcl::PointCloud<pcl::PointXYZ>);
   		pcl::fromROSMsg(*cloud, *cloud_pcl);

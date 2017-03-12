@@ -266,6 +266,7 @@ bool pathsolver::contains_NAN(geometry_msgs::Pose m)
     ROS_ERROR_STREAM("bad pose rejected :\n"<< m);
     return true;
   }
+  return false;
 }
 
 void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
