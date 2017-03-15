@@ -1,5 +1,6 @@
 #include "costmap.h"
-
+#define LETHAL 100
+#define SAFESIDE 90
 
 costmap::costmap(double x_orig_,double y_orig_,unsigned int cell_x_size_,unsigned int cell_y_size_,float resolution_,std::string frame_id_,bool show_debug_)
 {
@@ -75,6 +76,55 @@ bool costmap::is_valid()
 {
   return valid;
 }
+void costmap::Lethal_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec)
+{
+   int cellrad = (int) fabs(rad/resolution);
+   for(int i=mx-cellrad;i <= mx+cellrad;i++)
+     for(int j=my-cellrad;j <= mx+cellrad;j++)
+       if (Is_in_map(i,j)) index_vec.push_back(std::make_pair(i,j));
+}
+void costmap::SafeSide_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec)
+{
+   int cellrad = (int) fabs(rad/resolution);
+   for(int i=mx-cellrad;i <= mx+cellrad;i++)
+     for(int j=my-cellrad;j <= mx+cellrad;j++)
+       if (Is_in_map(i,j))
+         if(getCost(abs(i),abs(j)) != LETHAL)
+          index_vec.push_back(std::make_pair(i,j));
+}
+void costmap::inflate(float Lethatl_rad,float safeside_rad,signed char safesid_cost)
+{
+  std::vector<std::pair<unsigned int,unsigned int> > Lethal_index;
+  // LETHAL INDEX Find
+  for(int i=0;i<cell_x_size;i++)
+    for(int j=0;j<cell_y_size;j++)
+    {
+      if(mat[i][j] == LETHAL)
+      {
+        Lethal_inf(i,j,Lethatl_rad,Lethal_index);
+      }
+    }
+  // APPLY COST
+  for(int m=0;m<Lethal_index.size();m++)
+    setCost(Lethal_index[m].first,Lethal_index[m].second,LETHAL);
+
+   // SAFESIDE INDEX
+  if(safeside_rad == 0.000) return;
+  std::vector<std::pair<unsigned int,unsigned int> > SafeSide_index;
+  for(int i=0;i<cell_x_size;i++)
+    for(int j=0;j<cell_y_size;j++)
+    {
+      if(mat[i][j] == LETHAL)
+      {
+        SafeSide_inf(i,j,safeside_rad,SafeSide_index);
+      }
+    }
+  //APPLY COST
+  for(int m=0;m<SafeSide_index.size();m++)
+    setCost(SafeSide_index[m].first,SafeSide_index[m].second,SAFESIDE);
+
+}
+
 void costmap::UpdateFromMap(nav_msgs::OccupancyGrid m)
 {
   if(m.info.width != cell_x_size || m.info.height != cell_y_size)

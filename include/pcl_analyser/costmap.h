@@ -41,6 +41,7 @@ class costmap{
         void resetMap (unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn);
         void setCost_v(std::vector<signed char> vector,int cols);
         bool is_initialized();
+        void inflate(float Lethatl_rad,float safeside_rad,signed char safesid_cost);
         //void publish(ros::Publisher *pub, std::string topic_name);
         std::string frame_id;
         bool show_debug;
@@ -62,5 +63,8 @@ class costmap{
         signed char default_cost;
         std::vector<signed char> MatrixToVector();
         void VectorToMatrix(std::vector<signed char> Vector);
+        void Lethal_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec);
+        void SafeSide_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec);
+
 };
 #endif
