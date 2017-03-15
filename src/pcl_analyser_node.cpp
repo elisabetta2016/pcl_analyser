@@ -130,16 +130,16 @@ struct PointIndex {
       obstcle_pub_		    = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-      repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
-			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
-      path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
-      path_colision_pub_  = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
-			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
-      ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
-      Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
+//      repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
+//			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
+//      path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
+//      path_colision_pub_  = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
+//			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
+//      ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
+//      Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
       Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
-      path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
-      trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
+//      path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
+//      trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
       //
       master_grid_ = 0;
       elevation_grid_ = 0;
@@ -260,7 +260,6 @@ struct PointIndex {
        cloud_obstacle_projected.header.frame_id = "laser";
        cloud_obstacle_projected.header.stamp = ros::Time::now();
        obstcle_proj_pub_.publish(cloud_obstacle_projected);
-       //compute_repulsive_force(obs_projected);
        cloud_to_costmap(obstacle_pcl);
        costmap_to_cloud();
        repuslive_force_pub_.publish(repulsive_force);
@@ -298,122 +297,10 @@ struct PointIndex {
 
 		elevation_grid_->resetMap();
 		elevation_grid_->setCost_v(new_map->data,new_map->info.width);
-		Elevation_pub_.publish(elevation_grid_->getROSmsg());
+//		Elevation_pub_.publish(elevation_grid_->getROSmsg());
 		
 	}
 	
-  void test_chassis_sim()
-	{
-    if(first_elevation_received) return;
-		int sample_L = 13; 
-		double Ts_L = 3.00;
-		int path_number;
-		PointCloudVar PC;
-    //ros::NodeHandle n_pr("~");
-		sensor_msgs::PointCloud2 PC_msg;
-		MatrixXf tra;
-
-		tra.setZero( 3, sample_L);
-    VectorXf V_in(sample_L);
-    VectorXf Omega_in(sample_L);
-		Vector3f x_0,x_dot_0,x_dot_f;
-		x_0 << 0.0,0.0,0.0;
-		x_dot_0 << 0.0,0.0,0.0;
-    RoverPathClass Rov(0.0, sample_L,&n_pr,master_grid_,elevation_grid_);
-
-		std::vector<double> v_vector;
-		std::vector<double> o_vector;
-		n_pr.getParam("V_1", v_vector);
-		n_pr.getParam("path_number", path_number);
-
-		V_in = FromSTDvector(v_vector);
-		std::ostringstream j_no;
-		std::string temp;
-		for(int j=0;j < path_number;j++)
-		{
-			j_no.str("");
-			j_no.clear();
-			j_no << j;
-			temp = "O_" + j_no.str();
-			//ROS_WARN("String is %s", temp);
-			//std::cout << temp << "\n";
-			
-			n_pr.getParam("O_"+j_no.str(), o_vector);
-			
-			Omega_in = FromSTDvector(o_vector);
-
-			tra = Rov.Rover_vw(V_in, Omega_in, 0.0, Ts_L, x_0, x_dot_0 , sample_L, x_dot_f);		
-
-			PointXYZ point;
-			for(size_t i=0; i<tra.cols();i++)
-			{
-				point.x = tra(0,i);
-				point.y = tra(1,i);
-				point.z = 0.0;
-
-				PC.push_back(point);
-			
-			}
-		}
-		geometry_msgs::PoseArray Poses_msg;
-		VectorXf Poses;
-		if(!first_elevation_received) //!first_elevation_received
-		{
-      MatrixXf arm;
-      Rov.Chassis_simulator(tra, elevation_grid_, 3.5,arm, Poses, Poses_msg,ecostmap_meta);
-			ChassisPose_pub_.publish(Poses_msg);
-		}
-
-		pcl::toROSMsg(PC,PC_msg);
-		PC_msg.header.stamp = ros::Time::now();
-		PC_msg.header.frame_id = "base_link";
-		lookuppath_pub_.publish(PC_msg);				
-		
-	}
-
-  void test_auto_pathsolver()
-  {
-    ps_ptr = new pathsolver(&n_pr,"global_costmap","elevation_grid_",0.0,3.00,50);
-    ps_ptr->test();
-  }
-	
-  void test_pathsolver()
-  {
-     if(master_grid_ == 0 || elevation_grid_ == 0) return;
-     ROS_INFO("pcl_analyser:  Start Testing pathsolver");
-     geometry_msgs::Pose goal;
-     std::vector<double> vec;
-     if(n_.getParam("/psogoal",vec)){
-      goal.position.x = vec[0];
-      goal.position.y = vec[1];
-     }
-     else
-     {
-       ROS_ERROR("Could not find /psogoal param");
-       goal.position.x = 1.5;
-       goal.position.y = -1.0;
-     }
-     pathsolver p(&n_pr,master_grid_,elevation_grid_,0.0,3.00,50);
-     p.loadLUT();
-     pcl_analyser::Lookuptbl L = p.searchLUT(goal.position.x,goal.position.y,20);
-     ROS_INFO("pcl_analyser: %d pathes found",L.quantity );
-     nav_msgs::Path path;
-     for(int i=0;i<L.quantity;i++)
-     {
-       ROS_INFO("pcl_analyser: %d path a:%3f b%3f c:%3f d:%f l:%f",i,L.pathes[i].a,L.pathes[i].b,L.pathes[i].c,L.pathes[i].d,L.pathes[i].v);
-       path = L.pathes[i].path;
-       path.header.stamp = ros::Time::now();
-       path_colision_pub_.publish(path);
-       ros::Duration(0.5).sleep();
-     }
-     ROS_INFO("pcl_analyser: Initial guess published, Start runing the PSO");
-
-     p.get_publishers(&path_pub_);
-
-     p.handle(&path_solution_pub_,&trace_pub,goal);
-     ROS_INFO("PSO Done!");
-  }
-
 
 
 	void run()
@@ -484,7 +371,6 @@ struct PointIndex {
 		
 
 		Matrix4f transform_1 = Matrix4f::Identity();
-		int count = 0;
 		
 		float distance_passed = 0.0;
 		
@@ -498,7 +384,7 @@ struct PointIndex {
 			
       tf::StampedTransform transform_odom_laser;
       try{
-          listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform_odom_laser);
+          listener.lookupTransform("/map", "/base_link", ros::Time(0), transform_odom_laser);
           transform_present = true;
       }
       catch (tf::TransformException ex)
@@ -562,31 +448,11 @@ struct PointIndex {
 
       //Calling test functions
       curr_time = ros::Time::now();
-      //test_lookuptable_class();
-      //if((curr_time - last_time).toSec() > 2.00)
-      if(run && !first_loop && master_grid_->is_valid())
-      {
-        //test_pathsolver();
-        //test_auto_pathsolver();
-        run = false;
-        //test_PSO();
-        //last_time = curr_time;
-      }
 
-      // End Calling Test functions
-			// Publishing costmap pointcoud
 			pcl::toROSMsg(cost_map_cloud,costmap_cl);
       costmap_cl.header.frame_id = "base_link";
       costmap_cl.header.stamp = ros::Time::now();
 			cost_map_cl_pub_.publish(costmap_cl);			
-						
-      /*
-			sensor_msgs::PointCloud2 path_trace; 
-			pcl::toROSMsg(path_trace_pcl,path_trace);
-      path_trace.header.frame_id = "base_link";
-      path_trace.header.stamp = ros::Time::now();
-      path_trace_pub_.publish(path_trace);
-      */
       rate.sleep();
 			ros::spinOnce ();
 						
@@ -705,76 +571,6 @@ private:
       return out;
     }
 
-    PATH_COST Cost_of_path(MatrixXf path, costmap* grid)
-    {
-      CELL prev_cell;
-      CELL curr_cell;
-      prev_cell.x = 0;
-      prev_cell.y = 0;
-      PATH_COST cost;
-      cost.Lethal_cost = 0.0;
-      cost.Travel_cost = Travel_cost_inc;
-      cost.Inf_cost = 0.0;
-      cost.collision = false;
-
-      for(size_t i=0; i < path.cols(); i++)
-      {
-      unsigned int mx;
-      unsigned int my;
-      grid->worldToMap((double) path(0,i),(double) path(1,i),curr_cell.x,curr_cell.y);
-      //debug
-         //ROS_WARN("cell x:%d cell y:%d",curr_cell.x,curr_cell.y);
-
-      //debug end
-      if( (curr_cell.x != prev_cell.x) && (curr_cell.x != prev_cell.x) )
-      {
-        curr_cell.c = grid->getCost(curr_cell.x,curr_cell.y);
-        if (curr_cell.c == LETHAL_OBSTACLE)
-        {
-          cost.Lethal_cost += Lethal_cost_inc;
-          cost.collision = true;
-        }
-        if (curr_cell.c == INFLATED_OBSTACLE)
-        {
-          cost.Inf_cost += Inf_cost_inc;
-        }
-        cost.Travel_cost +=  Travel_cost_inc;
-        prev_cell = curr_cell;
-      }
-      }
-      return cost;
-    }
-
-    void cloud_voxel_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,float cube_size)
-    {
-
-        pcl::VoxelGrid<pcl::PointXYZ> VG;
-        VG.setInputCloud (cloud_in);
-        VG.setLeafSize (cube_size, cube_size, cube_size);
-        VG.filter (*cloud_out);
-
-    }
-
-    void cloud_outlier_removal(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
-    {
-      pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-        sor.setInputCloud (cloud_in);
-        sor.setMeanK (50);
-        sor.setStddevMulThresh (1.0);
-        sor.filter (*cloud_filtered);
-    }
-
-    void compute_repulsive_force(pcl::PointCloud<pcl::PointXYZ>::Ptr obs_proj)
-    {
-
-        for (size_t i = 0; i < obs_proj->points.size (); ++i)
-        {
-          repulsive_force.x +=  1/obs_proj->points[i].x;
-          repulsive_force.y +=  1/obs_proj->points[i].y;
-
-        }
-
-    }
 
     void cloud_2D_projection(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out)
     {
@@ -802,17 +598,6 @@ private:
 
     }
 
-    bool is_in_costmap(float x, float y)
-    {
-      double margin = 0.5;
-      bool out = false;
-      if ( x < ( costmap_x_size + origin_x - margin) && x > (-0.0 + origin_x + margin))
-      {
-        if ( y < (0 - origin_y - margin) && y > (-costmap_y_size - origin_y + margin) ) out = true;
-      }
-
-      return out;
-    }
 
     bool is_on_costmap_margin(int mx,int my)
     {
@@ -837,14 +622,13 @@ private:
           //if ( is_in_costmap(obs_2d->points[i].x, obs_2d->points[i].y) )
 
         master_grid_->worldToMapEnforceBounds((double) obs_2d->points[i].x + laser_dist,(double) obs_2d->points[i].y,mx,my); // was enforced
-        //master_grid_ros->updateBounds(0,cell_x-1,0,cell_y-1);
         if( !is_on_costmap_margin(mx,my) )
           master_grid_->setCost(mx,my, LETHAL_OBSTACLE);
 
       }
 
       lethal_inflation();
-        // Costmap2DPublisher
+      // Costmap2DPublisher
       Obstacle_pub_.publish(master_grid_->getROSmsg());
 
     }
@@ -867,24 +651,16 @@ private:
         else cost = LETHAL_OBSTACLE;
         if( !is_on_costmap_margin(mx,my) )
         master_grid_->setCost(mx,my, cost);
-
-
-
       }
 
-
-        // Costmap2DPublisher
-
         Obstacle_pub_.publish(master_grid_->getROSmsg());
-
     }
 
     void lethal_inflation() //fill the cell around the lethal obstacle
       {
-
           /* vector< vector<int> > matrix
 
-            0 1 2 3 4 5 6 7 8 ...
+          0 1 2 3 4 5 6 7 8 ...
           0	x
           1	y
 
@@ -903,8 +679,6 @@ private:
               matrix[index].resize(2);
               matrix[index][0] = i;
               matrix[index][1] = j;
-              //list_x_lethal.push_back(i); //fill the list with lethal obstacles
-              //list_y_lethal.push_back(j);
             }
           }
         }
