@@ -76,53 +76,57 @@ bool costmap::is_valid()
 {
   return valid;
 }
-void costmap::Lethal_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec)
+void costmap::Lethal_inf(int mx,int my, float rad)
 {
    int cellrad = (int) fabs(rad/resolution);
-   for(int i=mx-cellrad;i <= mx+cellrad;i++)
-     for(int j=my-cellrad;j <= mx+cellrad;j++)
-       if (Is_in_map(i,j)) index_vec.push_back(std::make_pair(i,j));
+   for(int i=-cellrad;i <= cellrad;i++)
+     for(int j=-cellrad;j <= cellrad;j++)
+       if(mx+i >= 0 && mx+i<= cell_x_size && my+j >= 0 && my+j<= cell_y_size) mat[mx+i][my+j] = LETHAL;
+       //if (Is_in_map(i,j)) index_vec.push_back(std::make_pair(i,j));
 }
-void costmap::SafeSide_inf(int mx,int my, float rad,std::vector<std::pair<unsigned int,unsigned int> >& index_vec)
+void costmap::SafeSide_inf(int mx,int my, float rad)
 {
    int cellrad = (int) fabs(rad/resolution);
-   for(int i=mx-cellrad;i <= mx+cellrad;i++)
-     for(int j=my-cellrad;j <= mx+cellrad;j++)
-       if (Is_in_map(i,j))
-         if(getCost(abs(i),abs(j)) != LETHAL)
-          index_vec.push_back(std::make_pair(i,j));
+   for(int i=-cellrad;i <= cellrad;i++)
+     for(int j=-cellrad;j <= cellrad;j++)
+       if(mx+i >= 0 && mx+i<= cell_x_size && my+j >= 0 && my+j<= cell_y_size)
+         if(mat[mx+i][my+j] != LETHAL) mat[mx+i][my+j] = SAFESIDE;
+
 }
-void costmap::inflate(float Lethatl_rad,float safeside_rad,signed char safesid_cost)
+void costmap::inflate(float Lethal_rad,float safeside_rad)
 {
   std::vector<std::pair<unsigned int,unsigned int> > Lethal_index;
   // LETHAL INDEX Find
+  int count = 0;
   for(int i=0;i<cell_x_size;i++)
     for(int j=0;j<cell_y_size;j++)
     {
       if(mat[i][j] == LETHAL)
       {
-        Lethal_inf(i,j,Lethatl_rad,Lethal_index);
+        count++;
+        Lethal_index.push_back(std::make_pair(i,j));
+        //Lethal_inf(i,j,Lethatl_rad,Lethal_index);
       }
     }
+
   // APPLY COST
   for(int m=0;m<Lethal_index.size();m++)
-    setCost(Lethal_index[m].first,Lethal_index[m].second,LETHAL);
+    Lethal_inf(Lethal_index[m].first,Lethal_index[m].second,Lethal_rad);
 
    // SAFESIDE INDEX
   if(safeside_rad == 0.000) return;
-  std::vector<std::pair<unsigned int,unsigned int> > SafeSide_index;
-  for(int i=0;i<cell_x_size;i++)
-    for(int j=0;j<cell_y_size;j++)
-    {
-      if(mat[i][j] == LETHAL)
-      {
-        SafeSide_inf(i,j,safeside_rad,SafeSide_index);
-      }
-    }
+//  std::vector<std::pair<unsigned int,unsigned int> > SafeSide_index;
+//  for(int i=0;i<cell_x_size;i++)
+//    for(int j=0;j<cell_y_size;j++)
+//    {
+//      if(mat[i][j] == LETHAL)
+//      {
+//        SafeSide_inf(i,j,safeside_rad);
+//      }
+//    }
   //APPLY COST
-  for(int m=0;m<SafeSide_index.size();m++)
-    setCost(SafeSide_index[m].first,SafeSide_index[m].second,SAFESIDE);
-
+  for(int m=0;m<Lethal_index.size();m++)
+    SafeSide_inf(Lethal_index[m].first,Lethal_index[m].second, Lethal_rad + safeside_rad);
 }
 
 void costmap::UpdateFromMap(nav_msgs::OccupancyGrid m)
