@@ -96,6 +96,7 @@ void pathsolver::arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
    Arm_goal(0) = msg->pose.position.x;
    Arm_goal(1) = msg->pose.position.y;
    Arm_goal(2) = 0.0;
+   ROS_INFO(KBLU "Arm Goal received!  x: %f   y: %f",Arm_goal(0),Arm_goal(1));
 }
 
 void pathsolver::costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)

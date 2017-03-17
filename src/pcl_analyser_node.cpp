@@ -262,7 +262,7 @@ struct PointIndex {
        obstcle_proj_pub_.publish(cloud_obstacle_projected);
        cloud_to_costmap(obstacle_pcl);
        costmap_to_cloud();
-       repuslive_force_pub_.publish(repulsive_force);
+//       repuslive_force_pub_.publish(repulsive_force);
        repulsive_force.x = 0.0;
        repulsive_force.y = 0.0;
        repulsive_force.z = 0.0;
