@@ -626,8 +626,8 @@ private:
           master_grid_->setCost(mx,my, LETHAL_OBSTACLE);
 
       }
-
-      lethal_inflation();
+      master_grid_->inflate(0.3,0.1);
+      //lethal_inflation();
       // Costmap2DPublisher
       Obstacle_pub_.publish(master_grid_->getROSmsg());
 
