@@ -65,7 +65,7 @@ class pathsolver
 {
 public:
 
-  pathsolver(ros::NodeHandle* nPtr_,std::string costmap_topic, std::string emap_topic,double b, float Ts_, int sample_,std::string param_ns_ = "pcl_analyser_node");
+  pathsolver(ros::NodeHandle* nPtr_, std::string costmap_topic, std::string emap_topic, double b, float Ts_, int sample_, std::string param_ns_ = "pcl_analyser_node", string arm_goal_topic = "/uav_pose");
   pathsolver(ros::NodeHandle* nPtr_,costmap* obs_grid_, costmap* e_grid_,double b, float Ts_, int sample_);
   ~pathsolver();
   void handle(ros::Publisher* path_pub,ros::Publisher* pathtrace_pub,geometry_msgs::Pose goal_pose);
@@ -88,6 +88,7 @@ protected:
   ros::NodeHandle* nPtr;
   PointCloudPtr pathtrace_ptr;
   nav_msgs::Path* resultpathptr;
+  Vector3f Arm_goal;
   //map <LT_key,pcl_analyser::Lpath>* LUTmapPtr;
   pcl_analyser::Lookuptbl::ConstPtr LUTmsgPtr;
   multimap<LT_key,multimap<LT_key,pcl_analyser::Lpath> >* LUTmapPtr;
@@ -97,15 +98,19 @@ protected:
   ros::Subscriber pose_sub;
   ros::Subscriber costmap_sub;
   ros::Subscriber emap_sub;
+  ros::Subscriber arm_goal_sub;
   ros::Publisher path_result_pub;
   ros::Publisher path_LUT_pub_;\
   ros::Publisher Chassis_pub;
   std::string param_ns;
+  bool arm_goal_exist;
 private:
+  float Arm_energy(MatrixXf Path, Vector3f goal);
   bool contains_NAN(geometry_msgs::Pose m);
   PATH_COST Cost_of_path(MatrixXf path, costmap *grid, float Lethal_cost_inc = 5.0,float Inf_cost_inc = 2.0,float Travel_cost_inc = 0.1);
   void Chassis_sim_pub(MatrixXf Path, double map_scale = 3.5);
   float Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale = 3.5);
+  void arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
   void emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
   void costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
   void build_rov_if_not_exist();
@@ -116,7 +121,7 @@ private:
   MatrixXf rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& tail, double& cost);
   MatrixXf compute_tra(float a,float b,float c,float d,float v,float s_max);
   void init_x(MatrixXf *xptr,Vector3f goal,int particle_no);
-  float compute_J(MatrixXf *traptr, Vector3f arm_goal, float travelcost, Vector3f Goal, bool& solution_found);
+  float compute_J(MatrixXf *traptr, float travelcost, Vector3f Goal, bool& solution_found);
   void init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2);
   void EleMetaCallback(const hector_elevation_visualization::EcostmapMetaData::Ptr msg);
 };
