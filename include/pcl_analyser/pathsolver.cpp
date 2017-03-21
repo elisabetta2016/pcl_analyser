@@ -93,6 +93,7 @@ pathsolver::~pathsolver()
 
 void pathsolver::arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
+   arm_goal_exist = true;
    Arm_goal(0) = msg->pose.position.x;
    Arm_goal(1) = msg->pose.position.y;
    Arm_goal(2) = 0.0;
@@ -102,11 +103,15 @@ void pathsolver::arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
 void pathsolver::costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
   master_grid_ptr = new costmap(msg,false);
+  ROS_INFO_ONCE(KGRN "costmap received!");
+
+  //ROS_INFO(RESET "new costmap");
   //build_rov_if_not_exist();
 }
 void pathsolver::emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
   elevation_grid_ptr= new costmap(msg,false);
+  ROS_INFO_ONCE(KCYN "emap received!");
   //build_rov_if_not_exist();
 }
 
@@ -187,6 +192,11 @@ PATH_COST pathsolver::Cost_of_path(MatrixXf path, costmap *grid, float Lethal_co
 
 float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale)
 {
+  if(elevation_grid_ptr == 0)
+  {
+    ROS_ERROR_ONCE("no elevation map has been received yet! This error is valid until you see the log elemap received");
+    return 0;
+  }
   float cost = 0.0;
   int vector_size = Path.cols();
   VectorXf temp_output (vector_size);
@@ -281,6 +291,11 @@ bool pathsolver::contains_NAN(geometry_msgs::Pose m)
 
 void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
 {
+  if(elevation_grid_ptr == 0)
+  {
+    ROS_ERROR_ONCE("no elevation map has been received yet! This error is valid until you see the log elemap received");
+    return;
+  }
   float cost = 0.0;
   int vector_size = Path.cols();
   VectorXf rolls (vector_size);
@@ -402,7 +417,7 @@ void pathsolver::get_publishers(ros::Publisher* temp_pub_ptr)
 }
 pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path_no)
 {
-  ROS_INFO("ciao");
+
   pcl_analyser::Lookuptbl table;
   //table = readLUT(wx, wy);
   float wx_,wy_;
@@ -660,21 +675,22 @@ MatrixXf pathsolver::rover_tra(ctrlparam Q, float s_max, geometry_msgs::Pose& ta
 float pathsolver::Arm_energy(MatrixXf Path, Vector3f goal)
 {
    if (!arm_goal_exist) return 0.0;
-   float cost = 0.0;
-   float x,y,theta_0,theta;
-   float COST_MAX = M_PI*Path.cols();
-   theta_0 = 0; //assuming that initially arm points to the target
+   float x,y,theta;
+   std::vector <float> THETA;
    // make sure the goal is being described in the body frame (base_link)
+   int nan_count = 0;
    for (int i = 0; i<Path.cols();i++)
    {
      x = goal(0) - Path(0,i);
      y = goal(1) - Path(1,i);
      theta = atan2(y,x);
-     cost = cost + fabs(theta - theta_0);
-     theta_0 = theta;
+     if(!isnan(theta)) THETA.push_back(theta);
+     else
+       nan_count++;
    }
-   //normalized output
-   return cost/COST_MAX;
+   if(nan_count > (int) abs(Path.cols()*0.4))
+     ROS_ERROR("Arm_energy: Failed to calculate %d samples",nan_count);
+   return Var(THETA);
 }
 
 float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool& solution_found)
@@ -700,9 +716,9 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool
   else
     h_goal = GOALPenalize_K*(CostNorm/Err)*Dx(tra_tail,Goal);
   //float h_obs = (cost.Lethal_cost + cost.Inf_cost);// path cost
-  float J_ch = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // to test
+  float J_ch = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // Fuck segmentation fault
 
-  float J_arm = Arm_energy(arm_tra,Arm_goal);
+  float J_arm = Arm_energy(arm_tra,Arm_goal); // cuase nan value
 
   C = J_ch + cost.Inf_cost + J_arm + travelcost+ h_goal + cost.Lethal_cost;
   ROS_INFO_COND(demo_,"cost of current path is %f",C);

@@ -9,6 +9,15 @@
 #define KMAG  "\x1B[35m"
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
+#define KLGRY "\x1b[90m"
+#define KLRED "\x1b[91m"
+#define KLGRN "\x1b[92m"
+#define KLYEL "\x1b[93m"
+#define KLBLU "\x1b[94m"
+#define KLMAG "\x1b[95m"
+#define KLCYN "\x1b[96m"
+#define KLWHT "\x1b[97m"
+#define RESET "\[<n>A\33[2K\r"
 
 #include "RoverPath.h"
 #include <sensor_msgs/PointCloud2.h>
@@ -61,6 +70,26 @@ struct ctrlparam
     this->v = v_;
   }
 };
+
+float Var(std::vector<float> vec)
+{
+   if (vec.empty()) return 0;
+   //Mean Val
+   float M = 0.0;
+   for(int i = 0;i<vec.size();i++)
+   {
+     M += vec[i];
+   }
+   M = M / vec.size();
+   //Var
+   float var = 0.0;
+   for(int i = 0;i<vec.size();i++)
+   {
+     var += (vec[i]-M)*(vec[i]-M);
+   }
+   return var;
+}
+
 class pathsolver
 {
 public:
