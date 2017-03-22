@@ -121,6 +121,81 @@ void pathsolver::build_rov_if_not_exist() //deprecated
   rov = new RoverPathClass(lookahead,sample,nPtr,master_grid_ptr,elevation_grid_ptr);
   ROS_INFO("ROVER PATH Instant built");
 }
+
+void pathsolver::drone_approach()
+{
+  path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
+  path_LUT_pub_   = nPtr->advertise <nav_msgs::Path>("/PSO_init_guess",1);
+  Chassis_pub     = nPtr->advertise <geometry_msgs::PoseArray> ("/Chassis_poses",1);
+  pose_sub = nPtr->subscribe("/uav_pose",1,&pathsolver::uavpose_cb,this);
+  loadLUT();
+  ROS_INFO("pathsolver: Approach Drone");
+  ros::spin();
+}
+
+bool pathsolver::uavpose_in_bodyframe(geometry_msgs::Pose uav_pose_IF,std::string IF_frame,std::string Body_frame, tf::Pose& uav_Body)
+{
+ using namespace tf;
+ TransformListener listener;
+ StampedTransform TransBodyToIF;
+ Pose uav_IF;
+ tf::poseMsgToTF(uav_pose_IF,uav_IF);
+ int attempt = 0;
+ while(ros::ok())
+ {
+   try
+   {
+       listener.lookupTransform(Body_frame, IF_frame, ros::Time(0), TransBodyToIF);
+       attempt = 0;
+       break;
+   }
+   catch (tf::TransformException ex)
+   {
+     //ROS_ERROR_COND(attempt%50 == 0,"%s",ex.what());
+     ros::Duration(0.01).sleep();
+     attempt ++;
+   }
+
+   if (attempt > 100)
+   {
+     ROS_FATAL("Transform Could not be found in the past second");
+     return false;
+   }
+ }
+ uav_Body = TransBodyToIF * uav_IF;
+ return true;
+
+}
+
+void pathsolver::uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
+{
+   ROS_INFO(KCYN "New UAV POSE Received!");
+   tf::Pose uav_body,goal_uav,goal_body;
+   if(!uavpose_in_bodyframe(msg->pose,"map","base_link",uav_body)) return;
+//   geometry_msgs::Pose uav_body_msg;
+//   tf::poseTFToMsg(uav_body,uav_body_msg);
+//   ROS_INFO_STREAM(uav_body_msg);
+   goal_uav.setOrigin(tf::Vector3(1.0, 0.0, 0.0));
+   goal_uav.setRotation(tf::Quaternion(0, 0, 0, 1));
+   goal_body = uav_body * goal_uav;
+
+   Vector3f goal;
+   goal(0) = goal_body.getOrigin().getX();
+   goal(1) = goal_body.getOrigin().getY();
+   goal(2) = 0;
+   pcl_analyser::Lookuptbl L = searchLUT(goal(0),goal(1),20);
+   nav_msgs::Path path;
+   for(int i=0;i<L.quantity;i++)
+   {
+     path = L.pathes[i].path;
+     path.header.stamp = ros::Time::now();
+     path_LUT_pub_.publish(path);
+     ros::Duration(0.05).sleep();
+   }
+   path_result_pub.publish(solve(goal));
+
+}
+
 void pathsolver::test()
 {
   path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
@@ -693,7 +768,7 @@ float pathsolver::Arm_energy(MatrixXf Path, Vector3f goal)
    return Var(THETA);
 }
 
-float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool& solution_found)
+float pathsolver::compute_J(MatrixXf *traptr, float travelcost, Vector3f Goal, bool& solution_found, pathPR &PR)
 {
   //parameters to be done
 #define Err 0.3
@@ -720,7 +795,8 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool
 
   float J_arm = Arm_energy(arm_tra,Arm_goal); // cuase nan value
 
-  C = J_ch + cost.Inf_cost + J_arm + travelcost+ h_goal + cost.Lethal_cost;
+  C = J_ch + cost.Inf_cost + J_arm + 50*travelcost+ h_goal + cost.Lethal_cost;
+  PR.fill(J_ch,cost.Inf_cost,J_arm,travelcost,h_goal,cost.Lethal_cost);
   ROS_INFO_COND(demo_,"cost of current path is %f",C);
   if (cost.Lethal_cost < 1) solution_found = true;
   if (h_goal > CostNorm) solution_found = false;
@@ -821,6 +897,8 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
   output_tra.setZero(3,sample);
   float G_cost = 1.0/0.0;
   float x_best_cost = 1.0/0.0;
+  pathPR curr_pr;
+  pathPR G_pr;
 
   pathtrace_ptr->clear();
   //init G and x_best
@@ -850,7 +928,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
 //      Vector3f arm_goal;
 //      arm_goal << 0.0,0.0,0.0;
       bool valid = false;
-      float Ob_func = compute_J(&tra,travelcost,goal,valid);
+      float Ob_func = compute_J(&tra,travelcost,goal,valid,curr_pr);
       //Best particle in the current iteration
       if (Ob_func < x_best_cost)
       {
@@ -862,6 +940,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
       if (Ob_func < G_cost && valid) // change applied here might fuck up the whole thing
       {
         G_cost = Ob_func;
+        G_pr = curr_pr;
         for (size_t jj=0; jj < x.rows();jj++) G(jj) = x(jj,i);
         output_tra = tra;
         if(demo_) ROS_WARN(" ------>  new value for G_cost");
@@ -876,6 +955,9 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
     }
     x = x+v;
   }
+  // setting solution param
+  G_pr.save(nPtr);
+
   Chassis_sim_pub(output_tra);
   nav_msgs::Path path_msg = MatToPath(output_tra,"base_link");
   return path_msg;
