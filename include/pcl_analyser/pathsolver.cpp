@@ -68,7 +68,7 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,std::string costmap_topic, std::st
   //lookahead = b;
   Ts = Ts_;
   nPtr = nPtr_;
-  //demo_ = false;
+  demo_ = false;
   master_grid_ptr = 0;
   elevation_grid_ptr = 0;
   param_ns = param_ns_+"/";
@@ -283,7 +283,7 @@ bool pathsolver::contains_NAN(geometry_msgs::Pose m)
 {
   if(isnan(m.orientation.w))
   {
-    ROS_ERROR_STREAM("bad pose rejected :\n"<< m);
+    ROS_ERROR_STREAM_COND(demo_,"bad pose rejected :\n"<< m);
     return true;
   }
   return false;
@@ -357,7 +357,7 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
       float de_left  = (((float)FLT_cell.c) - ((float) RLT_cell.c))*(map_scale/254.00);
       if(fabs(de_right) > FrontRearDist || fabs(de_left) > FrontRearDist)
       {
-        ROS_ERROR(KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
+        ROS_ERROR_COND(demo_,KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
         de_right = 0.0;
         de_left =0.0;
       }
@@ -699,7 +699,7 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool
 #define Err 0.3
 #define CostNorm 1.0
 #define GOALPenalize_K 3.0
-
+  solution_found = false;
   float C = 0.0;
   Vector3f tra_tail;
   tra_tail(0) = traptr->coeffRef(0,traptr->cols()-1);
@@ -723,6 +723,7 @@ float pathsolver::compute_J(MatrixXf *traptr,float travelcost,Vector3f Goal,bool
   C = J_ch + cost.Inf_cost + J_arm + travelcost+ h_goal + cost.Lethal_cost;
   ROS_INFO_COND(demo_,"cost of current path is %f",C);
   if (cost.Lethal_cost < 1) solution_found = true;
+  if (h_goal > CostNorm) solution_found = false;
   return C;
 }
 
@@ -820,7 +821,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
   output_tra.setZero(3,sample);
   float G_cost = 1.0/0.0;
   float x_best_cost = 1.0/0.0;
-  bool solution_found = false;
+
   pathtrace_ptr->clear();
   //init G and x_best
   for(size_t i=0;i< param_no; i++)
@@ -848,7 +849,8 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
       Tra_to_cloud(tra,pathtrace_ptr);
 //      Vector3f arm_goal;
 //      arm_goal << 0.0,0.0,0.0;
-      float Ob_func = compute_J(&tra,travelcost,goal,solution_found);
+      bool valid = false;
+      float Ob_func = compute_J(&tra,travelcost,goal,valid);
       //Best particle in the current iteration
       if (Ob_func < x_best_cost)
       {
@@ -857,7 +859,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
         if(demo_) ROS_INFO("new value for x_best_cost");
       }
       //Best absolute solution
-      if (Ob_func < G_cost)
+      if (Ob_func < G_cost && valid) // change applied here might fuck up the whole thing
       {
         G_cost = Ob_func;
         for (size_t jj=0; jj < x.rows();jj++) G(jj) = x(jj,i);
