@@ -112,6 +112,7 @@ void pathsolver::emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
   elevation_grid_ptr= new costmap(msg,false);
   ROS_INFO_ONCE(KCYN "emap received!");
+  scan360 = true;
   //build_rov_if_not_exist();
 }
 
@@ -192,7 +193,33 @@ void pathsolver::uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      path_LUT_pub_.publish(path);
      ros::Duration(0.05).sleep();
    }
-   path_result_pub.publish(solve(goal));
+   path_result_pub.publish(scanAndsolve(goal));
+
+}
+
+nav_msgs::Path pathsolver::scanAndsolve(Vector3f goal)
+{
+  scan360 = false;
+  ros::param::set("rover_state/scanner_command","Roll");
+  ROS_INFO(KLBLU "Start Scanning ");
+  std::cout << "Please Wait ";
+  int watchDog = 0;
+  while(ros::ok())
+  {
+    if(scan360) break;
+    std::cout << ".,";
+    ros::spinOnce();
+    ros::Duration(0.5).sleep();
+    watchDog++;
+    if (watchDog > 100)
+    {
+      ROS_ERROR("Something went wrong with scanning, plathsolver failed");
+      nav_msgs::Path Temp;
+      return Temp;
+    }
+  }
+  printf("\n");
+  return solve(goal);
 
 }
 

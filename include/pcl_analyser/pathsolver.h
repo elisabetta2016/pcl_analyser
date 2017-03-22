@@ -147,6 +147,7 @@ public:
   void test();
   void drone_approach();
 protected:
+  bool scan360;
   RoverPathClass *rov;
   int sample;
   float lookahead;
@@ -175,6 +176,7 @@ protected:
   std::string param_ns;
   bool arm_goal_exist;
 private:
+  nav_msgs::Path scanAndsolve(Vector3f goal);
   bool uavpose_in_bodyframe(geometry_msgs::Pose uav_pose_IF,std::string IF_frame,std::string Body_frame, tf::Pose& uav_Body);
   void uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
   float Arm_energy(MatrixXf Path, Vector3f goal);
