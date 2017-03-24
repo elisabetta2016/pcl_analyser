@@ -123,7 +123,7 @@ struct PointIndex {
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
       //subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
-			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
+//			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
 			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
 			subFromElevationCostmapMeta_ = n_.subscribe("/elevation_costmap_MetaData", 1, &ObstacleDetectorClass::EleMetaCallback,this);
 			// publishers
@@ -301,6 +301,67 @@ struct PointIndex {
 		
 	}
 	
+  void run_pub_once()
+  {
+    double normal_threshold_default = 0.7;
+    double height_threshold_default = -0.1;
+    double height_max_default = 2.0;
+
+
+    //ros::NodeHandle n_pr("~");
+
+    n_pr.param("normal_threshold", normal_threshold, normal_threshold_default);
+    n_pr.param("height_threshold", height_threshold, height_threshold_default);
+    n_pr.param("height_max", height_max,height_max_default);
+
+    if (normal_threshold != normal_threshold_default) ROS_INFO_ONCE("normal threshold is changed to %f", normal_threshold);
+    if (height_threshold != height_threshold_default) ROS_INFO_ONCE("height threshold is changed to %f", height_threshold);
+    if (height_max       != height_max_default)       ROS_INFO_ONCE("height threshold is changed to %f", height_max);
+
+    n_pr.param("costmap_res", costmap_res, 0.2);
+    n_pr.param("LETHAL_radius", lethal_rad, 0.1);
+    n_pr.param("INFLATION_radius", inf_rad, 0.3);
+
+    n_pr.param("pso_inertia", pso_inertia, 0.1);
+    n_pr.param("pso_c1", c_1, 0.45);
+    n_pr.param("pso_c2", c_2, 0.45);
+    n_pr.param("pso_goal_gain", Goal_gain, 30.0);
+    n_pr.param("pso_cost_gain", Cost_gain, 1.0);
+    n_pr.param("pso_speed_gain", Speed_gain, 0.0);
+    n_pr.param("pso_particle_no", particle_no, 10);
+    n_pr.param("pso_iteration", iteration, 5);
+    n_pr.param("path_piece_no", path_piece, 1);
+    n_pr.param("omega_x", omega_x, 0.3);
+
+    n_pr.param("Travel_cost_inc", Travel_cost_inc, 0.0);
+    n_pr.param("Lethal_cost_inc", Lethal_cost_inc, 10.0);
+    n_pr.param("Inflation_cost_inc", Inf_cost_inc, 3.0);
+    n_pr.param("b", b, 0.4);
+    n_pr.param("Watching_horizon", Watching_hor, 3.0);
+    n_pr.param("sample", sample, 15);
+    n_pr.param("demo_mode", demo_, false);
+
+    ROS_INFO_ONCE("PSO Params: pso_inertia:%f, c1:%f, c2:%f, Number of Particle:%d, Iteration:%d",pso_inertia,c_1,c_2,particle_no,iteration);
+    ROS_INFO_ONCE("PSO cost function Params: Goal_gain:%f, path_cost_gain:%f, speed_gain:%f",Goal_gain,Cost_gain,Speed_gain);
+    ros::Duration(0.4).sleep();
+    ros::Rate rate(2.0);
+
+    //costmap params
+    cell_x = (unsigned int) floor(abs(costmap_x_size/costmap_res)); //	#cell_x
+    cell_y = (unsigned int) floor(abs(costmap_y_size/costmap_res)); //	#cell_y
+    elevation_cell_x = floor(abs(elevation_costmap_x_size/elevation_resolution_xy));
+    elevation_cell_y = floor(abs(elevation_costmap_y_size/elevation_resolution_xy));
+
+    master_grid_ = new costmap(origin_x,origin_y,cell_x,cell_y,costmap_res,"base_link",false);
+
+    while(ros::ok())
+    {
+      cloud_to_costmap(cost_map_cloud);
+      rate.sleep();
+      ros::spinOnce();
+    }
+
+  }
 
 
 	void run()
@@ -797,7 +858,7 @@ int main(int argc, char **argv)
 
 	ObstacleDetectorClass Obstacle_rec(node);
 	
-	Obstacle_rec.run();
+  Obstacle_rec.run_pub_once();
 	
 	return 0;
 }

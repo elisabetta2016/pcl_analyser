@@ -183,7 +183,7 @@ protected:
   bool arm_goal_exist;
   bool path_solution_exist;
 private:
-  bool ExecutePath(geometry_msgs::Pose goal);
+  bool ExecutePath(geometry_msgs::Pose goal, nav_msgs::Path path);
   nav_msgs::Path scanAndsolve(Vector3f goal);
   bool uavpose_in_bodyframe(geometry_msgs::Pose uav_pose_IF,std::string IF_frame,std::string Body_frame, tf::Pose& uav_Body);
   void uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);

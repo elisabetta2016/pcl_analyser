@@ -194,13 +194,15 @@ void pathsolver::uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      path_LUT_pub_.publish(path);
      ros::Duration(0.05).sleep();
    }
-   path_result_pub.publish(scanAndsolve(goal));
+   nav_msgs::Path pathpso = scanAndsolve(goal);
+
+//   path_result_pub.publish(pathpso);
    ROS_WARN("Path Published and will be executed shortly");
-   ExecutePath(msg->pose);
+   ExecutePath(msg->pose,pathpso);
 
 }
 
-bool pathsolver::ExecutePath(geometry_msgs::Pose goal)
+bool pathsolver::ExecutePath(geometry_msgs::Pose goal,nav_msgs::Path path)
 {
   actionlib::SimpleActionClient<rover_actions::DriveToOAAction> acOA("DriveToOA", true);
   rover_actions::DriveToOAGoal goalOA;
@@ -220,6 +222,8 @@ bool pathsolver::ExecutePath(geometry_msgs::Pose goal)
     return false;
   }
   acOA.sendGoal(goalOA);
+  ros::Duration(0.2).sleep();
+  path_result_pub.publish(path);
   if(!acOA.waitForResult(ros::Duration(350)))
   {
     ROS_ERROR("Execution Time out");
