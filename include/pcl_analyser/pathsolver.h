@@ -29,6 +29,12 @@
 #include <boost/foreach.hpp>
 #include <geometry_msgs/PoseStamped.h>
 
+//DriveTo stuff
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib/client/terminal_state.h>
+#include <rover_actions/DriveToAction.h>
+#include <rover_actions/DriveToOAAction.h>
+
 using namespace Eigen;
 using namespace std;
 
@@ -175,7 +181,9 @@ protected:
   ros::Publisher Chassis_pub;
   std::string param_ns;
   bool arm_goal_exist;
+  bool path_solution_exist;
 private:
+  bool ExecutePath(geometry_msgs::Pose goal);
   nav_msgs::Path scanAndsolve(Vector3f goal);
   bool uavpose_in_bodyframe(geometry_msgs::Pose uav_pose_IF,std::string IF_frame,std::string Body_frame, tf::Pose& uav_Body);
   void uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);

@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Grid1
+        - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
         - /costmap1
@@ -48,7 +50,7 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 10
-      Reference Frame: <Fixed Frame>
+      Reference Frame: base_link
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -90,7 +92,7 @@ Visualization Manager:
         base_footprint:
           Value: false
         base_link:
-          Value: false
+          Value: true
         cam0:
           Value: false
         goal:
@@ -264,14 +266,14 @@ Visualization Manager:
     - Class: rviz/SetInitialPose
       Topic: /ini
     - Class: rviz/SetGoal
-      Topic: /my_goal
+      Topic: /uav_pose
     - Class: rviz/PublishPoint
       Single click: true
       Topic: /clicked_point
   Value: true
   Views:
     Current:
-      Angle: -1.57
+      Angle: -1.57001
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
@@ -280,11 +282,11 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 111.576
+      Scale: 118.676
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 1.87001
-      Y: -0.167399
+      X: 1.8959
+      Y: -0.110027
     Saved: ~
 Window Geometry:
   Displays:

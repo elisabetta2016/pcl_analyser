@@ -11,7 +11,7 @@ title "Scanner Control"
 
 screen 1
 title "pc_maker"
-#stuff "sleep 1;roslaunch pc_maker pointCloud_window.launch\015"
+stuff "sleep 1;roslaunch pc_maker pointCloud_window.launch\015"
 
 screen 2
 title "elevation map"
@@ -31,5 +31,5 @@ stuff "sleep 1; rosrun rviz rviz -d ${HOME}/catkin_ws/src/pcl_analyser/config/ps
 
 screen 6
 title "fake map"
-stuff "rosrun tf static_transform_publisher 0 0 0 0 0 0 map odom 30\015"
+#stuff "rosrun tf static_transform_publisher 0 0 0 0 0 0 map odom 30\015"
 select 4

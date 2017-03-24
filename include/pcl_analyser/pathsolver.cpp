@@ -82,6 +82,7 @@ pathsolver::pathsolver(ros::NodeHandle* nPtr_,std::string costmap_topic, std::st
   pathtrace_ptr = temp_ptr;
   LUTmapPtr =  new std::multimap <LT_key,std::multimap <LT_key,pcl_analyser::Lpath> >();
   show_ = false; // to be removed in the final version
+  path_solution_exist = false;
 }
 
 pathsolver::~pathsolver()
@@ -194,7 +195,38 @@ void pathsolver::uavpose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      ros::Duration(0.05).sleep();
    }
    path_result_pub.publish(scanAndsolve(goal));
+   ROS_WARN("Path Published and will be executed shortly");
+   ExecutePath(msg->pose);
 
+}
+
+bool pathsolver::ExecutePath(geometry_msgs::Pose goal)
+{
+  actionlib::SimpleActionClient<rover_actions::DriveToOAAction> acOA("DriveToOA", true);
+  rover_actions::DriveToOAGoal goalOA;
+  // param set
+  ros::param::set("DriveToOA/use_path_solver",true);
+  ros::param::set("DriveToOA/path_topic_name","PSO_RES");
+  //
+  goalOA.goal_pose = goal;
+  if(!path_solution_exist)
+  {
+    ROS_ERROR("pathsolver: ExecutePath: No solution exist to follow");
+    return false;
+  }
+  if(!acOA.waitForServer(ros::Duration(10)))
+  {
+    ROS_ERROR("pathsolver: ExecutePath: DriveTOOA server not found");
+    return false;
+  }
+  acOA.sendGoal(goalOA);
+  if(!acOA.waitForResult(ros::Duration(350)))
+  {
+    ROS_ERROR("Execution Time out");
+    return false;
+    acOA.cancelAllGoals();
+  }
+  return true;
 }
 
 nav_msgs::Path pathsolver::scanAndsolve(Vector3f goal)
@@ -971,6 +1003,7 @@ nav_msgs::Path pathsolver::solve(Vector3f goal)
         for (size_t jj=0; jj < x.rows();jj++) G(jj) = x(jj,i);
         output_tra = tra;
         if(demo_) ROS_WARN(" ------>  new value for G_cost");
+        path_solution_exist = true;
       }
       if(i==0) //Reseting X_best and its cost in each iteration
       {
