@@ -284,8 +284,14 @@ nav_msgs::Path pathsolver::action_solve(float x, float y)
       goal(1) = y;
       goal(2) = 0.0;
       nav_msgs::Path path = scanAndsolve(goal);
-      path_result_pub.publish(path);
-      return path;
+      path.header.frame_id = "base_link";
+      nav_msgs::Path pathIF;
+      if (!transform_path(path,pathIF,"map"))
+      {
+        ROS_ERROR("path could not be transformed!");
+      }
+      path_result_pub.publish(pathIF);
+      return pathIF;
     }
     ros::spinOnce();
     r.sleep();
