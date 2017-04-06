@@ -1,9 +1,0 @@
-<launch>
-
-  
-  <include file="$(find pcl_analyser)/launch/pso.launch" />
-  <include file="$(find rover_simulator)/launch/simulator.launch" />
-  
-  <node type="fake_obs_publisher" pkg="pcl_analyser" name="fake_obs_publisher" output="screen"/>
-  
-</launch>
