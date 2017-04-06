@@ -270,6 +270,33 @@ void pathsolver::test()
   ros::spin();
 }
 
+nav_msgs::Path pathsolver::action_solve(float x, float y)
+{
+
+  path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
+  Chassis_pub     = nPtr->advertise <geometry_msgs::PoseArray> ("/Chassis_poses",1);
+
+  ros::Rate r(10);
+  loadLUT();
+  while(nPtr->ok())
+  {
+    if( master_grid_ptr != 0 && elevation_grid_ptr != 0)
+    {
+      ROS_INFO("Start Finding a Path");
+      Vector3f goal;
+      goal(0) = x;
+      goal(1) = y;
+      goal(2) = 0.0;
+      nav_msgs::Path path = scanAndsolve(goal);
+      path_result_pub.publish(path);
+      return path;
+    }
+    ros::spinOnce();
+    r.sleep();
+  }
+
+}
+
 void pathsolver::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
    ROS_INFO("\x1B[33m" "POSE RECEIVED!");

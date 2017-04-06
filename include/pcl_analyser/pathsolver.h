@@ -152,6 +152,7 @@ public:
   pcl_analyser::Lookuptbl searchLUT(float wx,float wy,int desired_path_no);
   void test();
   void drone_approach();
+  nav_msgs::Path action_solve(float x, float y);
 protected:
   bool scan360;
   RoverPathClass *rov;
