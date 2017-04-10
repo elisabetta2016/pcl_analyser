@@ -100,6 +100,53 @@ bool transform_path(nav_msgs::Path path_in,nav_msgs::Path& path_out,string targe
   }
   return true;
 }
+bool transform_pose(geometry_msgs::PoseStamped pose_in,geometry_msgs::PoseStamped& pose_out,string target_frame)
+{
+    tf::TransformListener Listener;
+    tf::StampedTransform Trans;
+    if(target_frame.empty())
+    {
+      ROS_ERROR("transform_path: target frame is empty!");
+      return false;
+    }
+    if(pose_in.header.frame_id.empty())
+    {
+      ROS_ERROR("transform_path: source frame is empty!");
+      return false;
+    }
+    if (!Listener.waitForTransform(target_frame,pose_in.header.frame_id,ros::Time(0),ros::Duration(3.0)))
+    {
+      ROS_ERROR_STREAM("transform_path: transform could not be found source frame: " <<
+                       pose_in.header.frame_id << "Target Frame: " << target_frame);
+      return false;
+    }
+    ros::Rate r(10);
+    int attempt = 0;
+    while (ros::ok())
+    {
+      try
+      {
+         Listener.lookupTransform(target_frame,pose_in.header.frame_id,ros::Time(0),Trans);
+         break;
+      }
+      catch (tf::TransformException ex){
+        r.sleep();
+        attempt++;
+      }
+      if (attempt > 40)
+      {
+        ROS_ERROR("Transform Lost!! :(");
+        return false;
+      }
+    }
+    tf::Pose p_0,p_1;
+    tf::poseMsgToTF(pose_in.pose,p_0);
+    p_1 = Trans * p_0;
+    tf::poseTFToMsg(p_1,pose_out.pose); // Mind the orientation which sometimes has problems
+    pose_out.header.frame_id = target_frame;
+    pose_out.header.stamp = ros::Time::now();
+    return true;
+}
 
 float Dx(Vector3f a,Vector3f b)
 {
@@ -206,7 +253,7 @@ public:
   pcl_analyser::Lookuptbl searchLUT(float wx,float wy,int desired_path_no);
   void test();
   void drone_approach();
-  nav_msgs::Path action_solve(float x, float y);
+  nav_msgs::Path action_solve(geometry_msgs::PoseStamped Goal);
 protected:
   bool scan360;
   RoverPathClass *rov;

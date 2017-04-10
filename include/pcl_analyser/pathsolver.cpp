@@ -270,7 +270,7 @@ void pathsolver::test()
   ros::spin();
 }
 
-nav_msgs::Path pathsolver::action_solve(float x, float y)
+nav_msgs::Path pathsolver::action_solve(geometry_msgs::PoseStamped Goal)
 {
 
   path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
@@ -279,16 +279,24 @@ nav_msgs::Path pathsolver::action_solve(float x, float y)
 
   ros::Rate r(10);
   loadLUT();
+  geometry_msgs::PoseStamped Goal_body;
+  if(!transform_pose(Goal,Goal_body,"base_link"))
+  {
+    ROS_ERROR("Pose transformation failed");
+    nav_msgs::Path empty_path;
+    return empty_path;
+  }
+
   while(nPtr->ok())
   {
     if( master_grid_ptr != 0 && elevation_grid_ptr != 0)
     {
       ROS_INFO("Start Finding a Path");
       Vector3f goal;
-      goal(0) = x;
-      goal(1) = y;
+      goal(0) = Goal_body.pose.position.x;
+      goal(1) = Goal_body.pose.position.y;
       goal(2) = 0.0;
-      ROS_INFO("solving for x = %f and y = %f",x,y);
+      ROS_INFO("solving for x = %f and y = %f",Goal_body.pose.position.x,Goal_body.pose.position.y);
       nav_msgs::Path path = scanAndsolve(goal);
       path.header.frame_id = "base_link";
       path_local_frame_pub.publish(path);
