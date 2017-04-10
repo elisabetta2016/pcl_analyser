@@ -92,6 +92,10 @@ bool transform_path(nav_msgs::Path path_in,nav_msgs::Path& path_out,string targe
      tf::poseMsgToTF(path_in.poses[i].pose,p_0);
      p_1 = Trans * p_0;
      tf::poseTFToMsg(p_1,pose_msg.pose);
+     pose_msg.pose.orientation.w = 1;
+     pose_msg.pose.orientation.x = 0;
+     pose_msg.pose.orientation.y = 0;
+     pose_msg.pose.orientation.z = 0;
      path_out.poses[i] = pose_msg;
   }
   return true;
@@ -228,7 +232,8 @@ protected:
   ros::Subscriber emap_sub;
   ros::Subscriber arm_goal_sub;
   ros::Publisher path_result_pub;
-  ros::Publisher path_LUT_pub_;\
+  ros::Publisher path_LUT_pub_;
+  ros::Publisher path_local_frame_pub;
   ros::Publisher Chassis_pub;
   std::string param_ns;
   bool arm_goal_exist;

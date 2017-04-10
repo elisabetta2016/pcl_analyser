@@ -274,6 +274,7 @@ nav_msgs::Path pathsolver::action_solve(float x, float y)
 {
 
   path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
+  path_local_frame_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES_LOCAL",1);
   Chassis_pub     = nPtr->advertise <geometry_msgs::PoseArray> ("/Chassis_poses",1);
 
   ros::Rate r(10);
@@ -287,8 +288,10 @@ nav_msgs::Path pathsolver::action_solve(float x, float y)
       goal(0) = x;
       goal(1) = y;
       goal(2) = 0.0;
+      ROS_INFO("solving for x = %f and y = %f",x,y);
       nav_msgs::Path path = scanAndsolve(goal);
       path.header.frame_id = "base_link";
+      path_local_frame_pub.publish(path);
       nav_msgs::Path pathIF;
       if (!transform_path(path,pathIF,"map"))
       {
