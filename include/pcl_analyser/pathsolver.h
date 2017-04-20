@@ -285,7 +285,9 @@ protected:
   std::string param_ns;
   bool arm_goal_exist;
   bool path_solution_exist;
+  double e_cost_a_coeff,e_cost_b_coeff;
 private:
+  double z_from_cost(double cost);
   bool ExecutePath(geometry_msgs::Pose goal, nav_msgs::Path path);
   nav_msgs::Path scanAndsolve(Vector3f goal);
   bool uavpose_in_bodyframe(geometry_msgs::Pose uav_pose_IF,std::string IF_frame,std::string Body_frame, tf::Pose& uav_Body);

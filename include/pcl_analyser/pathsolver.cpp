@@ -372,6 +372,11 @@ PATH_COST pathsolver::Cost_of_path(MatrixXf path, costmap *grid, float Lethal_co
   return cost;
 }
 
+double pathsolver::z_from_cost(double cost)
+{
+  return ((double)cost + e_cost_b_coeff)/e_cost_a_coeff;
+}
+
 float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale)
 {
   if(elevation_grid_ptr == 0)
@@ -416,7 +421,8 @@ float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Pose
     FRT_cell.c = elevation_grid_ptr->getCost(FRT_cell.x,FRT_cell.y);
     FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
 
-    delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    delta_e = z_from_cost(((float)FLT_cell.c) - ((float) FRT_cell.c));
     if (FRT_cell.c == 255 || FLT_cell.c == 255)
     {
       unknownCell = true;
@@ -432,7 +438,8 @@ float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Pose
     }
     temp_pose.position.x = Path(0,i);
     temp_pose.position.y = Path(1,i);
-    temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
+    //temp_pose.position.z = (float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
+    temp_pose.position.z = z_from_cost(FRT_cell.c) + delta_e/2;
     temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (temp_output(i), 0.0, Path(2,i));
     msg.poses[i] = temp_pose;
   }
@@ -521,7 +528,8 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     FRT_cell.c = elevation_grid_ptr->getCost(FRT_cell.x,FRT_cell.y);
     FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
 
-    delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    delta_e = z_from_cost(((float)FLT_cell.c) - ((float) FRT_cell.c));
     if (FRT_cell.c == 255 || FLT_cell.c == 255)
     {
       unknownCell = true;
@@ -535,8 +543,10 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     {
       RRT_cell.c = elevation_grid_ptr->getCost(RRT_cell.x,RRT_cell.y);
       RLT_cell.c = elevation_grid_ptr->getCost(RLT_cell.x,RLT_cell.y);
-      float de_right = (((float)FRT_cell.c) - ((float) RRT_cell.c))*(map_scale/254.00);
-      float de_left  = (((float)FLT_cell.c) - ((float) RLT_cell.c))*(map_scale/254.00);
+      //float de_right = (((float)FRT_cell.c) - ((float) RRT_cell.c))*(map_scale/254.00);
+      float de_right = z_from_cost(((float)FRT_cell.c) - ((float) RRT_cell.c));
+      //float de_left  = (((float)FLT_cell.c) - ((float) RLT_cell.c))*(map_scale/254.00);
+      float de_left  = z_from_cost(((float)FLT_cell.c) - ((float) RLT_cell.c));
       if(fabs(de_right) > FrontRearDist || fabs(de_left) > FrontRearDist)
       {
         ROS_ERROR_COND(demo_,KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
@@ -947,6 +957,7 @@ void pathsolver::init_x(MatrixXf *xptr,Vector3f goal,int particle_no)
     xptr->coeffRef(4,i) = in_range_LUT.pathes[i].v;
   }
 }
+
 void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_inertia,double& c_1 , double& c_2)
 {
    ROS_WARN_STREAM("PSO Param:" << param_ns+"pso_particle_no");
@@ -975,6 +986,10 @@ void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_in
       c_2 = 0.1;
       ROS_WARN("pso pso_c_2 is missing, it is set to the default value of %f",c_2);
    }
+   if(!ros::param::get("/e_cost_a_coeff",e_cost_a_coeff))
+     ROS_ERROR("Param /e_cost_a_coeff");
+   if(!ros::param::get("/e_cost_a_coeff",e_cost_b_coeff))
+     ROS_ERROR("Param /e_cost_b_coeff");
 }
 
 nav_msgs::Path pathsolver::solve(Vector3f goal)
