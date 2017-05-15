@@ -40,6 +40,18 @@
 using namespace Eigen;
 using namespace std;
 
+MatrixXf PathToMatrix(nav_msgs::Path path)
+{
+  MatrixXf mat;
+  mat.setZero(3,path.poses.size());
+  for(int i=0;i<path.poses.size();i++)
+  {
+    mat(0,i) = path.poses[i].pose.position.x;
+    mat(1,i) = path.poses[i].pose.position.y;
+  }
+  return mat;
+}
+
 bool transform_path(nav_msgs::Path path_in,nav_msgs::Path& path_out,string target_frame)
 {
   tf::TransformListener Listener;
@@ -148,6 +160,27 @@ bool transform_pose(geometry_msgs::PoseStamped pose_in,geometry_msgs::PoseStampe
     return true;
 }
 
+float MEAN(VectorXf v)
+{
+  float mean = 0;
+  for(int i = 0;i< v.rows();i++)
+  {
+    mean += v(i);
+  }
+  return mean/v.rows();
+}
+
+float VAR(VectorXf v)
+{
+  float mean = MEAN(v);
+  float var = 0;
+  for(int i = 0;i< v.rows();i++)
+  {
+     var += (v(i)-mean)*(v(i)-mean);
+  }
+  return var;
+}
+
 float Dx(Vector3f a,Vector3f b)
 {
   return sqrtf((a-b).coeff(0)*(a-b).coeff(0) + (a-b).coeff(1)*(a-b).coeff(1));
@@ -254,6 +287,8 @@ public:
   void test();
   void drone_approach();
   nav_msgs::Path action_solve(geometry_msgs::PoseStamped Goal);
+  MatrixXf FromLPath(pcl_analyser::Lpath lp);
+
 protected:
   bool scan360;
   RoverPathClass *rov;
@@ -282,11 +317,13 @@ protected:
   ros::Publisher path_LUT_pub_;
   ros::Publisher path_local_frame_pub;
   ros::Publisher Chassis_pub;
+  ros::Publisher Chassis_path_pub;
   std::string param_ns;
   bool arm_goal_exist;
   bool path_solution_exist;
   double e_cost_a_coeff,e_cost_b_coeff;
-private:
+private:;
+  float Chassis_sim(MatrixXf Path);
   double z_from_cost(double cost);
   bool ExecutePath(geometry_msgs::Pose goal, nav_msgs::Path path);
   nav_msgs::Path scanAndsolve(Vector3f goal);

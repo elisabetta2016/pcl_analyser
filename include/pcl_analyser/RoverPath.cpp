@@ -649,48 +649,45 @@ void RoverPathClass::Rover_parts(MatrixXf trajectory, MatrixXf& FrontRightTrack,
 
     for(int i=0; i < length; i++ )
     {
-	Trans = TranMatrix2D(trajectory(2,i),trajectory(0,i),trajectory(1,i));
-	//ROS_ERROR_STREAM(Trans);
-	//ROS_WARN_STREAM(FLT_vector);
-	//ROS_INFO_STREAM(Trans*FLT_vector);
+      Trans = TranMatrix2D(trajectory(2,i),trajectory(0,i),trajectory(1,i));
+      //ROS_ERROR_STREAM(Trans);
+      //ROS_WARN_STREAM(FLT_vector);
+      //ROS_INFO_STREAM(Trans*FLT_vector);
 
-	temp  = Trans * FRT_vector;
-	
-	FrontRightTrack(0,i) = temp(0);
-	FrontRightTrack(1,i) = temp(1);
-	FrontRightTrack(2,i) = temp(2);
-	
+      temp  = Trans * FRT_vector;
 
-	temp  = Trans * FLT_vector;
-	
-	FrontLeftTrack(0,i) = temp(0);
-	FrontLeftTrack(1,i) = temp(1);
-	FrontLeftTrack(2,i) = temp(2);
-	
+      FrontRightTrack(0,i) = temp(0);
+      FrontRightTrack(1,i) = temp(1);
+      FrontRightTrack(2,i) = temp(2);
 
-	temp  = Trans * RRT_vector;
-	
-	RearRightTrack(0,i) = temp(0);
-	RearRightTrack(1,i) = temp(1);
-	RearRightTrack(2,i) = temp(2);
-	
 
-	temp  = Trans * RLT_vector;
-	
-	RearLeftTrack(0,i) = temp(0);
-	RearLeftTrack(1,i) = temp(1);
-	RearLeftTrack(2,i) = temp(2);
-	
+      temp  = Trans * FLT_vector;
 
-	temp  = Trans * Arm_vector;
-	
-	Arm(0,i) = temp(0);
-	Arm(1,i) = temp(1);
-	Arm(2,i) = temp(2);
-	
+      FrontLeftTrack(0,i) = temp(0);
+      FrontLeftTrack(1,i) = temp(1);
+      FrontLeftTrack(2,i) = temp(2);
 
-    }	
-    
+
+      temp  = Trans * RRT_vector;
+
+      RearRightTrack(0,i) = temp(0);
+      RearRightTrack(1,i) = temp(1);
+      RearRightTrack(2,i) = temp(2);
+
+
+      temp  = Trans * RLT_vector;
+
+      RearLeftTrack(0,i) = temp(0);
+      RearLeftTrack(1,i) = temp(1);
+      RearLeftTrack(2,i) = temp(2);
+
+
+      temp  = Trans * Arm_vector;
+
+      Arm(0,i) = temp(0);
+      Arm(1,i) = temp(1);
+      Arm(2,i) = temp(2);
+    }
 }
 
 Matrix3f RoverPathClass::TranMatrix2D(float theta, float t_x, float t_y)

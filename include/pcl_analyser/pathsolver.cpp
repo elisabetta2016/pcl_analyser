@@ -101,6 +101,16 @@ void pathsolver::arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
    ROS_INFO(KBLU "Arm Goal received!  x: %f   y: %f",Arm_goal(0),Arm_goal(1));
 }
 
+MatrixXf pathsolver::FromLPath(pcl_analyser::Lpath lp)
+{
+  ctrlparam Q;
+  Q.fill_in(lp.a,lp.b,lp.c,lp.d,lp.v);
+  float s_max = 1.0;
+  geometry_msgs::Pose tail;
+  double cost;
+  return rover_tra(Q,s_max,tail,cost);
+}
+
 void pathsolver::costmap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
   master_grid_ptr = new costmap(msg,false);
@@ -264,6 +274,7 @@ void pathsolver::test()
   path_result_pub = nPtr->advertise<nav_msgs::Path>("/PSO_RES",1);
   path_LUT_pub_   = nPtr->advertise <nav_msgs::Path>("/PSO_init_guess",1);
   Chassis_pub     = nPtr->advertise <geometry_msgs::PoseArray> ("/Chassis_poses",1);
+  Chassis_path_pub = nPtr->advertise<nav_msgs::Path> ("/Chassis_path",1);
   pose_sub = nPtr->subscribe("/my_goal",1,&pathsolver::pose_cb,this);
   loadLUT();
   ROS_INFO("Test Ready");
@@ -328,6 +339,8 @@ void pathsolver::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      path = L.pathes[i].path;
      path.header.stamp = ros::Time::now();
      path_LUT_pub_.publish(path);
+     //Chassis_sim_pub(FromLPath(L.pathes[i]));
+
      ros::Duration(0.05).sleep();
    }
    path_result_pub.publish(solve(goal));
@@ -377,6 +390,89 @@ double pathsolver::z_from_cost(double cost)
   return ((double)cost + e_cost_b_coeff)/e_cost_a_coeff;
 }
 
+float pathsolver::Chassis_sim(MatrixXf Path)
+{
+  if(elevation_grid_ptr == 0)
+  {
+    ROS_ERROR_ONCE("no elevation map has been received yet! This error is valid until you see the log elemap received");
+    return 0;
+  }
+  int vector_size = Path.cols();
+  VectorXf rolls (vector_size);
+  VectorXf pitches;
+  pitches.setZero(vector_size);
+  VectorXf Heights;
+  Heights.setZero(vector_size);
+//  Heights *= 0.2;
+  CELL FRT_cell;
+  CELL FLT_cell;
+  CELL RRT_cell;
+  CELL RLT_cell;
+  bool unknownCell = false;
+  const float RoverWidth = 0.3965;
+  const float FrontRearDist = 0.53;
+  float delta_e = 0.0;
+  MatrixXf FrontRightTrack;
+  MatrixXf FrontLeftTrack;
+  MatrixXf RearRightTrack;
+  MatrixXf RearLeftTrack;
+  MatrixXf Arm;
+
+  rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
+
+  for (size_t i=0;i < vector_size;i++)
+  {
+    //roll
+    if(!elevation_grid_ptr->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), FRT_cell.x, FRT_cell.y) ||
+       !elevation_grid_ptr->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), FLT_cell.x, FLT_cell.y) )
+    {
+      rolls(i) = 0.0;
+      continue;
+    }
+    FRT_cell.c = elevation_grid_ptr->getCost(FRT_cell.x,FRT_cell.y);
+    FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
+
+    //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    delta_e = z_from_cost((float)FLT_cell.c) - z_from_cost((float) FRT_cell.c);
+    if (FRT_cell.c == -1 || FLT_cell.c == -1)
+    {
+      unknownCell = true;
+    }
+
+    rolls(i) = asin(delta_e/RoverWidth);
+
+    //pitch
+    if(elevation_grid_ptr->worldToMap((double) RearRightTrack(0,i),(double) RearRightTrack(1,i), RRT_cell.x, RRT_cell.y) &&
+       elevation_grid_ptr->worldToMap((double) RearLeftTrack(0,i),(double) RearLeftTrack(1,i), RLT_cell.x, RLT_cell.y) )
+    {
+      RRT_cell.c = elevation_grid_ptr->getCost(RRT_cell.x,RRT_cell.y);
+      RLT_cell.c = elevation_grid_ptr->getCost(RLT_cell.x,RLT_cell.y);
+
+      float de_right = z_from_cost((float)FRT_cell.c) - z_from_cost((float) RRT_cell.c);
+      float de_left  = z_from_cost((float)FLT_cell.c) - z_from_cost((float) RLT_cell.c);
+
+      if(fabs(de_right) > FrontRearDist || fabs(de_left) > FrontRearDist)
+      {
+        ROS_ERROR_COND(demo_,KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
+        de_right = 0.0;
+        de_left =0.0;
+      }
+      pitches(i) = ( asin(de_right/FrontRearDist)+asin(de_left/FrontRearDist) )/2; //ave value
+    }
+    if (unknownCell)
+    {
+      if(i==1) rolls(i) = 0.0;
+      else rolls(i) = rolls(i-1);
+      if(!i==1) pitches(i) = pitches(i-1);
+      unknownCell = false;
+    }
+    Heights(i) = ( z_from_cost((float)FLT_cell.c) + z_from_cost((float)FRT_cell.c) +
+                             z_from_cost((float)RLT_cell.c) + z_from_cost((float)RRT_cell.c) )/4;
+
+  }
+  return VAR(rolls)+VAR(pitches)+VAR(Heights);
+}
+
 float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale)
 {
   if(elevation_grid_ptr == 0)
@@ -423,7 +519,7 @@ float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Pose
 
     //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
     delta_e = z_from_cost(((float)FLT_cell.c) - ((float) FRT_cell.c));
-    if (FRT_cell.c == 255 || FLT_cell.c == 255)
+    if (FRT_cell.c == -1 || FLT_cell.c == -1)
     {
       unknownCell = true;
     }
@@ -491,9 +587,10 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
   VectorXf pitches;
   pitches.setZero(vector_size);
   VectorXf Heights;
-  Heights.setOnes(vector_size);
-  Heights *= 0.2;
+  Heights.setZero(vector_size);
+//  Heights *= 0.2;
   geometry_msgs::Pose temp_pose;
+  geometry_msgs::PoseStamped temp_poseStp;
   CELL FRT_cell;
   CELL FLT_cell;
   CELL RRT_cell;
@@ -507,8 +604,9 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
   MatrixXf RearRightTrack;
   MatrixXf RearLeftTrack;
   MatrixXf Arm;
-  geometry_msgs::PoseArray msg;
+  geometry_msgs::PoseArray posearray_msg;
 
+  nav_msgs::Path path_msg;
   rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
 
 //  msg.poses = std::vector <geometry_msgs::Pose>;
@@ -529,8 +627,8 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
 
     //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
-    delta_e = z_from_cost(((float)FLT_cell.c) - ((float) FRT_cell.c));
-    if (FRT_cell.c == 255 || FLT_cell.c == 255)
+    delta_e = z_from_cost((float)FLT_cell.c) - z_from_cost((float) FRT_cell.c);
+    if (FRT_cell.c == -1 || FLT_cell.c == -1)
     {
       unknownCell = true;
     }
@@ -543,10 +641,10 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     {
       RRT_cell.c = elevation_grid_ptr->getCost(RRT_cell.x,RRT_cell.y);
       RLT_cell.c = elevation_grid_ptr->getCost(RLT_cell.x,RLT_cell.y);
-      //float de_right = (((float)FRT_cell.c) - ((float) RRT_cell.c))*(map_scale/254.00);
-      float de_right = z_from_cost(((float)FRT_cell.c) - ((float) RRT_cell.c));
-      //float de_left  = (((float)FLT_cell.c) - ((float) RLT_cell.c))*(map_scale/254.00);
-      float de_left  = z_from_cost(((float)FLT_cell.c) - ((float) RLT_cell.c));
+
+      float de_right = z_from_cost((float)FRT_cell.c) - z_from_cost((float) RRT_cell.c);
+      float de_left  = z_from_cost((float)FLT_cell.c) - z_from_cost((float) RLT_cell.c);
+
       if(fabs(de_right) > FrontRearDist || fabs(de_left) > FrontRearDist)
       {
         ROS_ERROR_COND(demo_,KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
@@ -567,36 +665,29 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     }
     temp_pose.position.x = Path(0,i);
     temp_pose.position.y = Path(1,i);
-    temp_pose.position.z = Heights(i);//(float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
+//    temp_pose.position.z = Heights(i);
+    temp_pose.position.z = ( z_from_cost((float)FLT_cell.c) + z_from_cost((float)FRT_cell.c) +
+                             z_from_cost((float)RLT_cell.c) + z_from_cost((float)RRT_cell.c) )/4;
+
     temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (rolls(i), pitches(i), Path(2,i));
     if(contains_NAN(temp_pose))
     {
-      ROS_ERROR(KCYN "Roll: %f, Pitch: %f, Yaw:%f quaterion conversion failed", rolls(i), 0.0, Path(2,i));
+      ROS_ERROR(KCYN "element:%d  Roll: %f, Pitch: %f, Yaw:%f quaterion conversion failed", (int)i,rolls(i), 0.0, Path(2,i));
     }
     else
-      msg.poses.push_back(temp_pose);
+    {
+      posearray_msg.poses.push_back(temp_pose);
+      temp_poseStp.pose = temp_pose;
+      path_msg.poses.push_back(temp_poseStp);
+    }
   }
+  posearray_msg.header.stamp = ros::Time::now();
+  posearray_msg.header.frame_id = "base_link";
+  Chassis_pub.publish(posearray_msg);
 
-  msg.header.stamp = ros::Time::now();
-  msg.header.frame_id = "base_link";
-  Chassis_pub.publish(msg);
-//  float roll_0 = 0.0;
-//  float COST_MAX = rolls.cols() * M_PI/2; // The worst case is when there is M_PI/4 diff and M_PI/4 const for each sample
-//  for(int i = 0;i< rolls.cols();i++)
-//  {
-//    if(rolls(i) > M_PI/4 || rolls(i) < -M_PI/4) //hazard
-//    {
-//      cost = 1.5*COST_MAX;
-//      return cost/COST_MAX;
-//    }
-//    else
-//    {
-//      cost = fabs(rolls(i)-roll_0)+fabs(rolls(i))+cost; // 1st term differential term 2nd term current roll
-//      roll_0 = rolls(i);
-//    }
-//    //normalized output
+  path_msg.header = posearray_msg.header;
+  Chassis_path_pub.publish(path_msg);
 
-//  }
 
 }
 
@@ -908,8 +999,8 @@ float pathsolver::compute_J(MatrixXf *traptr, float travelcost, Vector3f Goal, b
   else
     h_goal = GOALPenalize_K*(CostNorm/Err)*Dx(tra_tail,Goal);
   //float h_obs = (cost.Lethal_cost + cost.Inf_cost);// path cost
-  float J_ch = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // Fuck segmentation fault
-
+//  float J_ch = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // Fuck segmentation fault
+  float J_ch = Chassis_sim(*traptr);
   float J_arm = Arm_energy(arm_tra,Arm_goal); // cuase nan value
 
   C = J_ch + cost.Inf_cost + J_arm + 50*travelcost+ h_goal + cost.Lethal_cost;
@@ -988,7 +1079,7 @@ void pathsolver::init_pso_param(int& particle_no, int& iteration, double& pso_in
    }
    if(!ros::param::get("/e_cost_a_coeff",e_cost_a_coeff))
      ROS_ERROR("Param /e_cost_a_coeff");
-   if(!ros::param::get("/e_cost_a_coeff",e_cost_b_coeff))
+   if(!ros::param::get("/e_cost_b_coeff",e_cost_b_coeff))
      ROS_ERROR("Param /e_cost_b_coeff");
 }
 
