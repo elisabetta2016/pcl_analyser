@@ -296,6 +296,7 @@ private:
   bool contains_NAN(geometry_msgs::Pose m);
   PATH_COST Cost_of_path(MatrixXf path, costmap *grid, float Lethal_cost_inc = 5.0,float Inf_cost_inc = 2.0,float Travel_cost_inc = 0.1);
   void Chassis_sim_pub(MatrixXf Path, double map_scale = 3.5);
+  float Chassis_sim(MatrixXf Path, MatrixXf& Arm);
   float Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Poses, geometry_msgs::PoseArray& msg, double map_scale = 3.5);
   void arm_goal_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
   void emap_cb(const nav_msgs::OccupancyGrid::ConstPtr& msg);
