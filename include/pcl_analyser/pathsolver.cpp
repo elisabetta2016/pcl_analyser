@@ -518,8 +518,8 @@ float pathsolver::Chassis_simulator(MatrixXf Path, MatrixXf& Arm, VectorXf& Pose
     FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
 
     //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
-    delta_e = z_from_cost(((float)FLT_cell.c) - ((float) FRT_cell.c));
-    if (FRT_cell.c == -1 || FLT_cell.c == -1)
+    delta_e = z_from_cost(((float)FLT_cell.c)) - z_from_cost(((float) FRT_cell.c));
+    if (FRT_cell.c == 255 || FLT_cell.c == 255)
     {
       unknownCell = true;
     }
@@ -574,6 +574,117 @@ bool pathsolver::contains_NAN(geometry_msgs::Pose m)
   return false;
 }
 
+float pathsolver::Chassis_sim(MatrixXf Path, MatrixXf& Arm)
+{
+  if(elevation_grid_ptr == 0)
+  {
+    ROS_ERROR_ONCE("no elevation map has been received yet! This error is valid until you see the log elemap received");
+    return 0.0;
+  }
+//  float cost = 0.0;
+  int vector_size = Path.cols();
+  VectorXf rolls (vector_size);
+  VectorXf pitches;
+  pitches.setZero(vector_size);
+  VectorXf Heights;
+  Heights.setOnes(vector_size);
+  Heights *= 0.2;
+  geometry_msgs::Pose temp_pose;
+  CELL FRT_cell;
+  CELL FLT_cell;
+  CELL RRT_cell;
+  CELL RLT_cell;
+//  bool unknownCell = false;
+  const float RoverWidth = 0.3965;
+  const float FrontRearDist = 0.53;
+  float delta_e = 0.0;
+  MatrixXf FrontRightTrack;
+  MatrixXf FrontLeftTrack;
+  MatrixXf RearRightTrack;
+  MatrixXf RearLeftTrack;
+//  MatrixXf Arm;
+  float roll_cost = 0.0;
+  float pitch_cost = 0.0;
+  float height_cost = 0.0;
+
+  rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
+
+//  msg.poses = std::vector <geometry_msgs::Pose>;
+  for (size_t i=0;i < vector_size;i++)
+  {
+    //roll
+    if(!elevation_grid_ptr->worldToMap((double) FrontRightTrack(0,i),(double) FrontRightTrack(1,i), FRT_cell.x, FRT_cell.y) ||
+       !elevation_grid_ptr->worldToMap((double) FrontLeftTrack(0,i),(double) FrontLeftTrack(1,i), FLT_cell.x, FLT_cell.y) )
+    {
+//      temp_pose.position.x = Path(0,i);
+//      temp_pose.position.y = Path(1,i);
+//      temp_pose.position.z = 0.0;
+//      temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (0.0, 0.0, Path(2,i));
+      rolls(i) = 0.0;
+      continue;
+    }
+    FRT_cell.c = elevation_grid_ptr->getCost(FRT_cell.x,FRT_cell.y);
+    FLT_cell.c = elevation_grid_ptr->getCost(FLT_cell.x,FLT_cell.y);
+
+    //delta_e = (((float)FLT_cell.c) - ((float) FRT_cell.c))*(map_scale/254.00);
+    delta_e = z_from_cost(((float)FLT_cell.c)) - z_from_cost(((float) FRT_cell.c));
+//    if (FRT_cell.c == 255 || FLT_cell.c == 255)
+//    {
+//      unknownCell = true;
+//    }
+
+    rolls(i) = asin(delta_e/RoverWidth);
+
+    //pitch
+    if(elevation_grid_ptr->worldToMap((double) RearRightTrack(0,i),(double) RearRightTrack(1,i), RRT_cell.x, RRT_cell.y) &&
+       elevation_grid_ptr->worldToMap((double) RearLeftTrack(0,i),(double) RearLeftTrack(1,i), RLT_cell.x, RLT_cell.y) )
+    {
+      RRT_cell.c = elevation_grid_ptr->getCost(RRT_cell.x,RRT_cell.y);
+      RLT_cell.c = elevation_grid_ptr->getCost(RLT_cell.x,RLT_cell.y);
+      //float de_right = (((float)FRT_cell.c) - ((float) RRT_cell.c))*(map_scale/254.00);
+      float de_right = z_from_cost(((float)FRT_cell.c) - ((float) RRT_cell.c));
+      //float de_left  = (((float)FLT_cell.c) - ((float) RLT_cell.c))*(map_scale/254.00);
+      float de_left  = z_from_cost(((float)FLT_cell.c) - ((float) RLT_cell.c));
+      if(fabs(de_right) > FrontRearDist || fabs(de_left) > FrontRearDist)
+      {
+        ROS_ERROR_COND(demo_,KYEL "Strange things is going on de_right: %f, de_left :%f index: %d",de_right,de_left,(int)i);
+        de_right = 0.0;
+        de_left =0.0;
+      }
+      pitches(i) = ( asin(de_right/FrontRearDist)+asin(de_left/FrontRearDist) )/2; //ave value
+      if(i < vector_size-1)
+        Heights(i+1) = Heights(i)+(de_right+de_left)/2;
+    }
+//    if (unknownCell)
+//    {
+//      if(i==1) rolls(i) = 0.0;
+//      else rolls(i) = rolls(i-1);
+//      if(!i==1) pitches(i) = pitches(i-1);
+//      if(i< vector_size-1) Heights(i+1) = Heights(i);
+//      unknownCell = false;
+//    }
+
+    if(i>0)
+    {
+      if(!isnan(rolls(i)-rolls(i-1)))     roll_cost   += fabs(rolls(i)  -rolls(i-1));
+      if(!isnan(pitches(i)-pitches(i-1))) pitch_cost  += fabs(pitches(i)-pitches(i-1));
+      if(!isnan(Heights(i)-Heights(i-1))) height_cost += fabs(Heights(i)-Heights(i-1));
+    }
+//    temp_pose.position.x = Path(0,i);
+//    temp_pose.position.y = Path(1,i);
+//    temp_pose.position.z = Heights(i);//(float) FRT_cell.c*(map_scale/254.00) + delta_e/2 - 3.00;
+//    temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (rolls(i), pitches(i), Path(2,i));
+//    if(contains_NAN(temp_pose))
+//    {
+//      ROS_ERROR(KCYN "Roll: %f, Pitch: %f, Yaw:%f quaterion conversion failed", rolls(i), 0.0, Path(2,i));
+//    }
+//    else
+//      msg.poses.push_back(temp_pose);
+  }
+  return height_cost + pitch_cost + roll_cost;
+
+}
+
 void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
 {
   if(elevation_grid_ptr == 0)
@@ -606,7 +717,7 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
   MatrixXf Arm;
   geometry_msgs::PoseArray posearray_msg;
 
-  nav_msgs::Path path_msg;
+
   rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
 
 //  msg.poses = std::vector <geometry_msgs::Pose>;
@@ -1000,7 +1111,7 @@ float pathsolver::compute_J(MatrixXf *traptr, float travelcost, Vector3f Goal, b
     h_goal = GOALPenalize_K*(CostNorm/Err)*Dx(tra_tail,Goal);
   //float h_obs = (cost.Lethal_cost + cost.Inf_cost);// path cost
 //  float J_ch = Chassis_simulator(*traptr,arm_tra, Poses, Poses_msg);   // Fuck segmentation fault
-  float J_ch = Chassis_sim(*traptr);
+  float J_ch = Chassis_sim(*traptr,arm_tra);
   float J_arm = Arm_energy(arm_tra,Arm_goal); // cuase nan value
 
   C = J_ch + cost.Inf_cost + J_arm + 50*travelcost+ h_goal + cost.Lethal_cost;
@@ -1008,6 +1119,12 @@ float pathsolver::compute_J(MatrixXf *traptr, float travelcost, Vector3f Goal, b
   ROS_INFO_COND(demo_,"cost of current path is %f",C);
   if (cost.Lethal_cost < 1) solution_found = true;
   if (h_goal > CostNorm) solution_found = false;
+  if(isnan(C))
+  {
+    ROS_FATAL(KLRED,"nan cost returned");
+    if (isnan(J_ch)) ROS_ERROR("chassis cost is nan!");
+    if (isnan(J_arm)) ROS_ERROR("arm cost is nan");
+  }
   return C;
 }
 
