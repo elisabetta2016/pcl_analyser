@@ -262,7 +262,7 @@ class lpgen
 
     void fill(double v_norm)
     {
-      traceptr->clear();
+      //traceptr->clear();
       //VectorXf V_vec(1);
       //V_vec << 0.1,0.15,0.2,0.3,0.4,0.7,0.9;
 
@@ -319,7 +319,7 @@ class lpgen
 
     void fill_smart(double v_norm, float min_a,float max_a, unsigned int a_step)
     {
-      traceptr->clear();
+      //traceptr->clear();
       //VectorXf V_vec(1);
       //V_vec << 0.1,0.15,0.2,0.3,0.4,0.7,0.9;
       A_vec = linspace(min_a,max_a,a_step);
@@ -377,13 +377,16 @@ class lpgen
     void pushpath2cloud(int id, nav_msgs::Path path)
     {
        pointT point;
-       for(int i = 0; i < sample; i++)
-       {
-          point.x = path.poses[i].pose.position.x;
-          point.y = path.poses[i].pose.position.y;
-          point.z = 0;
-          point.intensity = (float) id;
-       }
+//       for(int i = 0; i < sample; i++)
+//       {
+//          point.x = path.poses[i].pose.position.x;
+//          point.y = path.poses[i].pose.position.y;
+//          point.z = 0;
+//          point.intensity = (float) id;
+//       }
+       int tail_indx = path.poses.size()-1;
+       point.x = path.poses[tail_indx].pose.position.x;
+       point.y = path.poses[tail_indx].pose.position.y;
        traceptr->push_back(point);
 
     }
@@ -394,7 +397,7 @@ class lpgen
       rate = 10.0;
       ros::Rate r(rate);
       sensor_msgs::PointCloud2 msg;
-      V_vec = linspace(0.3,3,10);
+      V_vec = linspace(0.3,5,20);
 
       A_vec = linspace(-3,-3,1);
       B_vec = linspace(7,2,5);
@@ -428,6 +431,7 @@ class lpgen
       pcl::toROSMsg(*traceptr,msg);
       msg.header.stamp = ros::Time::now();
       msg.header.frame_id = "base_link";
+      cloudpub.publish(msg);
       writetobag();
     }
 
@@ -442,20 +446,20 @@ class lpgen
 
        fill(10);
        ROS_INFO("Done");
-       /*
+
        pcl::toROSMsg(*traceptr,msg);
 
        msg.header.stamp = ros::Time::now();
        msg.header.frame_id = "base_link";
-
-       while(n_.ok())
-       {
-         //test();
-         //fill(2.3);
-         cloudpub.publish(msg);
-         r.sleep();
-         ros::spinOnce();
-       }*/
+       cloudpub.publish(msg);
+//       while(n_.ok())
+//       {
+//         //test();
+//         //fill(2.3);
+//         cloudpub.publish(msg);
+//         r.sleep();
+//         ros::spinOnce();
+//       }
 
     }
 

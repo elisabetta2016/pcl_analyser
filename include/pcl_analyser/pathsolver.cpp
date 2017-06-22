@@ -339,7 +339,7 @@ void pathsolver::pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
      path = L.pathes[i].path;
      path.header.stamp = ros::Time::now();
      path_LUT_pub_.publish(path);
-     //Chassis_sim_pub(FromLPath(L.pathes[i]));
+     Chassis_sim_pub(FromLPath(L.pathes[i]));
 
      ros::Duration(0.05).sleep();
    }
@@ -672,7 +672,7 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
     temp_pose.orientation = tf::createQuaternionMsgFromRollPitchYaw (rolls(i), pitches(i), Path(2,i));
     if(contains_NAN(temp_pose))
     {
-      ROS_ERROR(KCYN "element:%d  Roll: %f, Pitch: %f, Yaw:%f quaterion conversion failed", (int)i,rolls(i), 0.0, Path(2,i));
+//      ROS_ERROR(KCYN "element:%d  Roll: %f, Pitch: %f, Yaw:%f quaterion conversion failed", (int)i,rolls(i), 0.0, Path(2,i));
     }
     else
     {
@@ -718,10 +718,10 @@ pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path
       switch(turn)
       {
       case 1:
-         wx_ = wx_ + step*res;
-         turn++;
-         table_tmp = readLUT(wx_, wy_);
-         break;
+        wx_ = wx_ + step*res;
+        turn++;
+        table_tmp = readLUT(wx_, wy_);
+        break;
       case 2:
         wy_ = wy_ + step*res;
         turn++;
@@ -734,7 +734,7 @@ pcl_analyser::Lookuptbl pathsolver::searchLUT(float wx,float wy,int desired_path
         table_tmp = readLUT(wx_, wy_);
         break;
       case 4:
-        wy = wy_ - step*res;
+        wy_ = wy_ - step*res;
         turn = 1;
         step++;
         table_tmp = readLUT(wx_, wy_);

@@ -122,24 +122,13 @@ struct PointIndex {
       n_pr = n_pr_temp;
 			//subscribers
 			SubFromCloud_		 = n_.subscribe("/RL_cloud", 1, &ObstacleDetectorClass::cloud_call_back,this);
-      //subFromTrackSpeed_	 = n_.subscribe("/RoverTrackSpeed", 1, &ObstacleDetectorClass::TrackCallback,this);
-//			subFromGoal_		 = n_.subscribe("/goal", 1, &ObstacleDetectorClass::GoalCallback,this);
 			subFromElevationCostmap_ = n_.subscribe("/elevation_costmap", 1, &ObstacleDetectorClass::ElevationCallback,this);
 			subFromElevationCostmapMeta_ = n_.subscribe("/elevation_costmap_MetaData", 1, &ObstacleDetectorClass::EleMetaCallback,this);
 			// publishers
       obstcle_pub_		    = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_cloud", 1);
 			obstcle_proj_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("obstacle_proj_cloud", 1);
 			cost_map_cl_pub_	  = n_.advertise<sensor_msgs::PointCloud2> ("costmap_cloud", 1);
-//      repuslive_force_pub_= n_.advertise<geometry_msgs::Vector3> ("force", 1);
-//			path_pub_	  	      = n_.advertise<nav_msgs::Path> ("Path_sim", 1);
-//      path_solution_pub_  = n_.advertise<nav_msgs::Path> ("/Path_pso", 1);
-//      path_colision_pub_  = n_.advertise<nav_msgs::Path> ("/Path_colision_check", 1);
-//			lookuppath_pub_		  = n_.advertise<sensor_msgs::PointCloud2> ("LookupPathTrace", 1);
-//      ChassisPose_pub_	  = n_.advertise<geometry_msgs::PoseArray> ("Chassispose", 1);
-//      Elevation_pub_		  = n_.advertise<nav_msgs::OccupancyGrid> ("elevation_grid_", 1);
       Obstacle_pub_		    = n_.advertise<nav_msgs::OccupancyGrid> ("global_costmap", 1);
-//      path_trace_pub_ptr  = boost::shared_ptr <ros::Publisher> (new ros::Publisher(n_.advertise<sensor_msgs::PointCloud2> ("path_trace", 1)));
-//      trace_pub           = n_.advertise<sensor_msgs::PointCloud2> ("tracePC", 1);
       //
       master_grid_ = 0;
       elevation_grid_ = 0;
@@ -232,7 +221,7 @@ struct PointIndex {
 
             //obstacle_nomal_pcl.points[pointIdxNKNSearch[j]].z = cloud_normals->points[pointIdxNKNSearch[j]].normal_z;
             if(cloud_normals->points[pointIdxNKNSearch[j]].normal_z < normal_threshold &&
-			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        > height_threshold &&
+                cloud_pcl->points[pointIdxNKNSearch[j]].z        > height_threshold &&
 			       		cloud_pcl->points[pointIdxNKNSearch[j]].z        < height_max)
             {
 							obstacle_pcl->points.push_back (cloud_pcl->points[ pointIdxNKNSearch[j] ]);
