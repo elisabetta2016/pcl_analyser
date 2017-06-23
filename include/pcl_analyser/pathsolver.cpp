@@ -717,6 +717,7 @@ void pathsolver::Chassis_sim_pub(MatrixXf Path, double map_scale)
   MatrixXf Arm;
   geometry_msgs::PoseArray posearray_msg;
 
+  nav_msgs::Path path_msg;
 
   rov->Rover_parts(Path,FrontRightTrack, FrontLeftTrack, RearRightTrack, RearLeftTrack, Arm);
 
